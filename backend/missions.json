@@ -1,0 +1,449 @@
+[
+  {
+    "id": "hidden-file",
+    "title": "Find the Hidden File",
+    "tier": 0,
+    "game": "Exploration",
+    "description": "Every great admin starts with a little curiosity.",
+    "objective": "Find the hidden flag in your home directory and read its contents.",
+    "minutes": 5,
+    "xp": 100,
+    "commands": [
+      "pwd",
+      "ls",
+      "cd",
+      "cat"
+    ],
+    "explanation": "ls normally hides names beginning with a dot. ls -a reveals them. cd changes your working directory; cat reads a file. A full path works from any directory: cat /home/quest/.secrets/flag.txt.",
+    "interview": "How do you list hidden files and explain the difference between absolute and relative paths?"
+  },
+  {
+    "id": "workspace",
+    "title": "Build Your Basecamp",
+    "tier": 0,
+    "game": "Filesystem Builder",
+    "description": "Give your next project a place to call home.",
+    "objective": "Create ~/projects, copy README.txt into it as notes.txt, and create an empty todo.txt there.",
+    "minutes": 6,
+    "xp": 120,
+    "commands": [
+      "mkdir",
+      "cp",
+      "touch",
+      "mv",
+      "rm",
+      "ls"
+    ],
+    "explanation": "mkdir creates directories; cp preserves the source, while mv moves or renames it. touch creates an empty file when it does not exist. Always check paths with ls before removing files.",
+    "interview": "What is the difference between cp and mv? How would you create a nested directory tree?"
+  },
+  {
+    "id": "read-logs",
+    "title": "Read Between the Lines",
+    "tier": 0,
+    "game": "Log Explorer",
+    "description": "Your first clue is already in the logs.",
+    "objective": "Read the system log and the first lines of the welcome document.",
+    "minutes": 4,
+    "xp": 100,
+    "commands": [
+      "cat",
+      "head",
+      "tail",
+      "less"
+    ],
+    "explanation": "head and tail show the beginning or end of a file. less normally offers interactive paging; this simulator prints its content. In production, tail -f follows a growing log.",
+    "interview": "Which commands would you use to inspect a large log without loading it into an editor?"
+  },
+  {
+    "id": "escape-room",
+    "title": "The Linux Escape Room",
+    "tier": 0,
+    "game": "Escape Room",
+    "description": "A locked file. A hidden clue. One way out.",
+    "objective": "Read documents/clue.txt. Fix the hidden flag so only its owner can read and write it, then read it.",
+    "minutes": 8,
+    "xp": 150,
+    "commands": [
+      "ls",
+      "cat",
+      "chmod"
+    ],
+    "explanation": "File mode 600 means owner read+write (4+2), group no access, others no access. A file can exist but still deny you access. Least privilege is better than granting everyone full access.",
+    "interview": "What does chmod 600 mean, and when would you use it?"
+  },
+  {
+    "id": "permissions",
+    "title": "Permission Puzzle",
+    "tier": 1,
+    "game": "Permission Puzzle",
+    "description": "The script is ready. Its permissions are not.",
+    "objective": "Give /opt/app/start.sh mode 750, make quest its owner and ops its group, then execute it.",
+    "minutes": 7,
+    "xp": 180,
+    "commands": [
+      "ls",
+      "chmod",
+      "chown",
+      "chgrp",
+      "./"
+    ],
+    "explanation": "Mode 750 grants the owner rwx, the group r-x, and others nothing. chown changes ownership and generally requires root. Running a script directly needs execute permission; bash script.sh reads it through the interpreter.",
+    "interview": "A script works with bash script.sh but fails with ./script.sh. What would you check?"
+  },
+  {
+    "id": "process-hunter",
+    "title": "Process Hunter",
+    "tier": 1,
+    "game": "Process Hunter",
+    "description": "Something is eating CPU. Find it. Stop it.",
+    "objective": "Inspect processes, identify runaway-worker, and stop it without killing other processes.",
+    "minutes": 6,
+    "xp": 180,
+    "commands": [
+      "ps",
+      "top",
+      "kill",
+      "free",
+      "uptime"
+    ],
+    "explanation": "Inspect CPU and memory before taking action. SIGTERM is the default kill signal and lets a process shut down cleanly. SIGKILL should be a last resort. Verify that healthy processes remain.",
+    "interview": "How would you investigate high CPU? When would you use SIGTERM versus SIGKILL?"
+  },
+  {
+    "id": "users-groups",
+    "title": "A New Teammate",
+    "tier": 1,
+    "game": "Access Manager",
+    "description": "Onboard a teammate with just enough access.",
+    "objective": "Create user analyst with a home directory, then add analyst to the ops group.",
+    "minutes": 6,
+    "xp": 180,
+    "commands": [
+      "useradd",
+      "usermod",
+      "id",
+      "cat"
+    ],
+    "explanation": "useradd -m creates a home directory. usermod -aG appends supplementary groups; omitting -a can replace existing memberships on a real system. Review access rather than sharing root credentials.",
+    "interview": "What does usermod -aG do, and why does the -a flag matter?"
+  },
+  {
+    "id": "text-detective",
+    "title": "Pipeline Detective",
+    "tier": 1,
+    "game": "Text Investigation",
+    "description": "Turn noisy output into useful evidence.",
+    "objective": "Filter ERROR lines from /var/log/app/error.log into ~/errors.txt using a pipeline and redirection.",
+    "minutes": 6,
+    "xp": 170,
+    "commands": [
+      "cat",
+      "grep",
+      "awk",
+      "sed",
+      "wc",
+      "tee"
+    ],
+    "explanation": "A pipe connects one command’s output to the next command’s input. > writes output to a file, replacing its contents; >> appends. Quote patterns containing spaces. In a real shell, sudo does not automatically elevate a > redirect.",
+    "interview": "Explain pipes and redirection. Why can sudo echo text > /etc/file still fail?"
+  },
+  {
+    "id": "rescue-server",
+    "title": "Rescue the Server",
+    "tier": 2,
+    "game": "Service Recovery",
+    "description": "The web server is down. The logs know why.",
+    "objective": "Inspect the failed web service and its logs. Remove BROKEN_DIRECTIVE from its configuration, restart it, and verify HTTP.",
+    "minutes": 10,
+    "xp": 250,
+    "commands": [
+      "systemctl",
+      "journalctl",
+      "sed",
+      "curl"
+    ],
+    "explanation": "A failed service is a symptom. Read status and journal entries to find its cause. Fix the configuration before restarting, then verify the user-facing endpoint. Service names and paths differ across distro families.",
+    "interview": "A web service fails after a configuration change. Walk me through your investigation and verification."
+  },
+  {
+    "id": "ssh-detective",
+    "title": "SSH Detective",
+    "tier": 2,
+    "game": "SSH Investigation",
+    "description": "The keys are fine. Why can nobody connect?",
+    "objective": "Restore the SSH service, allow TCP 22 in the firewall, and verify an SSH connection to localhost.",
+    "minutes": 9,
+    "xp": 240,
+    "commands": [
+      "systemctl",
+      "ss",
+      "ufw",
+      "firewall-cmd",
+      "ssh",
+      "sshd"
+    ],
+    "explanation": "Timeouts often point to packet filtering or routing; connection refused often means no listener. Check service state, listening ports, firewall, then authentication. This lab changes runtime firewall state; production may also require persistent rules.",
+    "interview": "How do you distinguish an SSH timeout, connection refused, and permission denied?"
+  },
+  {
+    "id": "storage",
+    "title": "Room to Grow",
+    "tier": 2,
+    "game": "Storage Engineer",
+    "description": "The data volume needs breathing room.",
+    "objective": "Inspect storage, extend /dev/vg0/data to at least 15 GiB, and grow the filesystem.",
+    "minutes": 8,
+    "xp": 250,
+    "commands": [
+      "lsblk",
+      "df",
+      "lvs",
+      "vgs",
+      "lvextend",
+      "resize2fs",
+      "xfs_growfs"
+    ],
+    "explanation": "Extending a logical volume and growing its filesystem are separate operations. Check free extents first. ext filesystems use resize2fs; XFS uses xfs_growfs on the mount point. This model supports both and does not alter real disks.",
+    "interview": "Why can df still show the old size after extending an LVM logical volume?"
+  },
+  {
+    "id": "scheduled-backup",
+    "title": "The Midnight Backup",
+    "tier": 2,
+    "game": "Automation",
+    "description": "Make the routine happen without you.",
+    "objective": "Run ~/backup.sh successfully and schedule it daily at midnight in your crontab.",
+    "minutes": 8,
+    "xp": 240,
+    "commands": [
+      "cat",
+      "bash",
+      "echo",
+      "crontab",
+      "rsync"
+    ],
+    "explanation": "Cron uses minute, hour, day of month, month, and day of week fields. Use absolute paths and account for the runtime user. The lab validates the schedule but does not wait for midnight or execute background jobs.",
+    "interview": "Why might a script work interactively but fail from cron?"
+  },
+  {
+    "id": "disk-emergency",
+    "title": "Disk Space Emergency",
+    "tier": 3,
+    "game": "Disk Rescue",
+    "description": "100% full. Zero time for guesswork.",
+    "objective": "Investigate disk usage and remove the oversized debug.log. Preserve application and system logs.",
+    "minutes": 8,
+    "xp": 300,
+    "commands": [
+      "df",
+      "du",
+      "ls",
+      "rm",
+      "tail"
+    ],
+    "explanation": "Start with df, then narrow down with du. Preserve evidence and business data. Removing an open file may not reclaim space until its process closes it in real Linux; this simulator reclaims it immediately. Log rotation prevents recurrence.",
+    "interview": "df says the disk is full, but du cannot account for the space. What would you investigate next?"
+  },
+  {
+    "id": "network",
+    "title": "The Missing Connection",
+    "tier": 3,
+    "game": "Network Troubleshooter",
+    "description": "The server is up. The names go nowhere.",
+    "objective": "Investigate connectivity, fix /etc/resolv.conf with a working resolver, and verify DNS using dig.",
+    "minutes": 9,
+    "xp": 300,
+    "commands": [
+      "ip",
+      "ping",
+      "cat",
+      "tee",
+      "dig",
+      "nslookup"
+    ],
+    "explanation": "Test the network layer before DNS. If an IP works while a name fails, inspect resolver settings. In production, resolv.conf is often managed by systemd-resolved, NetworkManager, or DHCP; make the change in the owning service.",
+    "interview": "A server can ping an IP address but cannot reach a hostname. How do you troubleshoot it?"
+  },
+  {
+    "id": "incident",
+    "title": "Production Incident Commander",
+    "tier": 3,
+    "game": "Incident Response",
+    "description": "A failed deployment. A runaway worker. You have the pager.",
+    "objective": "Investigate logs and processes, repair the web configuration, stop runaway-worker, restore service, and verify HTTP.",
+    "minutes": 15,
+    "xp": 400,
+    "commands": [
+      "journalctl",
+      "ps",
+      "sed",
+      "kill",
+      "systemctl",
+      "curl"
+    ],
+    "explanation": "An incident can have multiple contributing faults. Work from evidence, make targeted changes, and verify the customer-facing service. A real response also needs a timeline, communication, rollback planning, and a follow-up review.",
+    "interview": "Describe how you would lead an outage investigation while limiting risky changes."
+  },
+  {
+    "id": "permission-outage",
+    "title": "The 403 Mystery",
+    "tier": 3,
+    "game": "Application Outage",
+    "description": "The service is healthy. The page is forbidden.",
+    "objective": "Diagnose the HTTP failure, restore index.html to mode 644 and owner www-data, and verify HTTP.",
+    "minutes": 8,
+    "xp": 300,
+    "commands": [
+      "curl",
+      "ls",
+      "chmod",
+      "chown"
+    ],
+    "explanation": "A running service can still fail at the application layer. Check directory traversal permissions, file ownership, and read access for the service account. On SELinux systems, also investigate security contexts rather than disabling enforcement.",
+    "interview": "Nginx is active, but users get 403. What would you check?"
+  },
+  {
+    "id": "git",
+    "title": "Your First Deployment Commit",
+    "tier": 4,
+    "game": "Version Control",
+    "description": "Every reliable release starts with a recorded change.",
+    "objective": "Initialize a Git repository in ~/workspace, stage app.py, and create a commit with a message.",
+    "minutes": 7,
+    "xp": 320,
+    "commands": [
+      "cd",
+      "git"
+    ],
+    "explanation": "A repository records a sequence of changes. Staging selects the content for the next commit; a meaningful message explains why it exists. This Git model is local and does not connect to GitHub.",
+    "interview": "What is the difference between your working tree, the staging area, and a commit?"
+  },
+  {
+    "id": "docker",
+    "title": "Ship It in a Container",
+    "tier": 4,
+    "game": "Container Lab",
+    "description": "Bring the daemon back. Launch the web container.",
+    "objective": "Start Docker, then run nginx with container port 80 published on host port 8080.",
+    "minutes": 8,
+    "xp": 330,
+    "commands": [
+      "systemctl",
+      "docker"
+    ],
+    "explanation": "The Docker client needs a working daemon. -p HOST:CONTAINER publishes a container port. Containers share the host kernel; production containers need constrained privileges, resource limits, and trusted images. No real container is started here.",
+    "interview": "A container is running, but its app is unreachable. How do you check port publishing?"
+  },
+  {
+    "id": "kubernetes",
+    "title": "Restore the Replica Set",
+    "tier": 4,
+    "game": "Kubernetes Recovery",
+    "description": "Zero replicas means zero available application.",
+    "objective": "Scale deployment/web to at least three replicas and verify its rollout.",
+    "minutes": 8,
+    "xp": 350,
+    "commands": [
+      "kubectl"
+    ],
+    "explanation": "A Deployment manages the desired application replica count. Scaling changes the desired state; rollout verification checks convergence. Production readiness also depends on probes, scheduling capacity, networking, and dependencies.",
+    "interview": "What is the difference between desired replicas and available replicas?"
+  },
+  {
+    "id": "terraform",
+    "title": "Infrastructure as Code",
+    "tier": 4,
+    "game": "Cloud Builder",
+    "description": "Turn a resource definition into a repeatable plan.",
+    "objective": "Create ~/workspace/main.tf with a resource block, initialize Terraform, review a plan, and apply it.",
+    "minutes": 10,
+    "xp": 350,
+    "commands": [
+      "echo",
+      "terraform",
+      "aws",
+      "az"
+    ],
+    "explanation": "Terraform initializes providers, compares desired and current state, then applies a plan. This educational model does not call providers or create cloud resources. In production, review the saved plan, protect state, and use approvals for changes.",
+    "interview": "Why should Terraform state be protected and shared through a remote backend?"
+  },
+  {
+    "id": "datacenter",
+    "title": "Data Center Simulator",
+    "tier": 5,
+    "game": "Multi-server Operations",
+    "description": "Three hosts. One healthy fleet.",
+    "objective": "Read inventory.ini, start the web service on web-01, web-02 and lb-01, and patch every host in the inventory.",
+    "minutes": 15,
+    "xp": 450,
+    "commands": [
+      "cat",
+      "ssh",
+      "systemctl",
+      "ansible",
+      "apt",
+      "dnf"
+    ],
+    "explanation": "A fleet needs consistent state across hosts. You can connect to each host manually or use declarative automation with privilege escalation. This model represents a service fleet; a real load balancer additionally needs upstream configuration and health checks.",
+    "interview": "How would you configure and patch multiple servers without creating configuration drift?"
+  },
+  {
+    "id": "hardening",
+    "title": "Close the Open Door",
+    "tier": 5,
+    "game": "Server Hardening",
+    "description": "Secure access while preserving the way back in.",
+    "objective": "Disable root login and password authentication in sshd_config, validate it, and restart the SSH service.",
+    "minutes": 10,
+    "xp": 420,
+    "commands": [
+      "cat",
+      "sed",
+      "sshd",
+      "systemctl",
+      "getenforce",
+      "aa-status"
+    ],
+    "explanation": "Key-based authentication and restricted root access reduce exposure. Validate configuration and keep an existing session open before a production reload. Ensure a tested key and recovery path exist. Security modules should stay enforcing.",
+    "interview": "How would you harden SSH on a remote production host without locking yourself out?"
+  },
+  {
+    "id": "monitoring",
+    "title": "Eyes on Production",
+    "tier": 5,
+    "game": "Observability",
+    "description": "A running server should never be an invisible server.",
+    "objective": "Configure Prometheus to scrape localhost:9100, start its service, and inspect the metrics endpoint.",
+    "minutes": 12,
+    "xp": 420,
+    "commands": [
+      "cat",
+      "tee",
+      "promtool",
+      "systemctl",
+      "curl"
+    ],
+    "explanation": "Prometheus scrapes metrics endpoints on a schedule. Validate configuration before reloads and use meaningful alerts based on user impact. Grafana visualizes collected data. This lab checks a target and service, without running a real scrape loop.",
+    "interview": "What would you monitor to distinguish a CPU bottleneck from an application outage?"
+  },
+  {
+    "id": "disaster-recovery",
+    "title": "Back from the Brink",
+    "tier": 5,
+    "game": "Disaster Recovery",
+    "description": "The website is corrupted. The backup is waiting.",
+    "objective": "Restore the healthy index.html from /srv/backups, preserve readable web permissions, and verify the live response.",
+    "minutes": 10,
+    "xp": 500,
+    "commands": [
+      "cat",
+      "cp",
+      "chmod",
+      "chown",
+      "curl"
+    ],
+    "explanation": "A backup is valuable only if you can restore it. Verify content, permissions, and application health after recovery. Real recovery plans define RPO, RTO, off-site copies, restoration order, and regular restore tests.",
+    "interview": "What are RPO and RTO, and how would you test a recovery plan?"
+  }
+]

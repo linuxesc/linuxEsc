@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: linuxquest
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your shell}
+      POSTGRES_DB: linuxquest
+    volumes:
+      - quest_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linuxquest"]
+      interval: 5s
+      retries: 10
+  api:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: postgresql://linuxquest:${POSTGRES_PASSWORD}@postgres:5432/linuxquest
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  quest_data:
