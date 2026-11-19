@@ -1,7 +1,7 @@
 'use client';
 
 import cases from '@/data/incidents.json';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,reachableServers,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
 
 type Scores=Partial<Record<Lab,number>>;
@@ -15,6 +15,11 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const [guided,setGuided]=useState(true),[timed,setTimed]=useState(false),[debrief,setDebrief]=useState(false);
  const [incidentMode,setIncidentMode]=useState('Learning');
  const [hintStep,setHintStep]=useState(0);
+ const [transcript,setTranscript]=useState<{prompt:string;input:string;output:string}[]>([]);
+ const [historyIndex,setHistoryIndex]=useState<number|null>(null);
+ const draft=useRef('');
+ const consoleLog=useRef<HTMLDivElement>(null);
+ useEffect(()=>{const log=consoleLog.current;if(log)log.scrollTop=log.scrollHeight;},[transcript,output]);
  const [tool,setTool]=useState('Connections');
  const [fiberCheck,setFiberCheck]=useState('');
  const [drag,setDrag]=useState<string|null>(null);
@@ -26,7 +31,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{if(!started||complete)return;const timer=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer);},[started,complete]);
  useEffect(()=>{if(!complete||lab==='free')return;const elapsed=Math.floor((Date.now()-started)/1000);setScores(old=>{if(old[lab]!==undefined&&old[lab]!<=elapsed)return old;const next={...old,[lab]:elapsed};try{localStorage.setItem('infraquest-completions',JSON.stringify(next));}catch{}return next});},[complete,lab,started]);
  function start(id:Lab){
-  setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
+  setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
  }
  useEffect(()=>{if(startCooling){start('cooling');setCareer(5);clearLaunch();}},[startCooling,clearLaunch]);
  function choose(id:string){select(id);setPort(0);}
@@ -48,7 +53,10 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  }
  function execute(input:string){
   if(!input.trim())return;
+  setHistoryIndex(null);draft.current='';
+  if(input.trim()==='clear'){setTranscript([]);setOutput('');setLine('');return;}
   const next=structuredClone(world),result=command(next,device.id,input,port);
+  setTranscript(entries=>[...entries.slice(-199),{prompt:device.id+' (e'+(port+1)+')>',input,output:result.output}]);
   setWorld(next);setPort(result.port);setOutput(result.output);setPacket(result.packet??[]);setLine('');
  }
  function toggleCable(link:Link){
@@ -127,8 +135,28 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
    </>}
    {tool==='Console'&&<div><h3>{device.id} console <small>e{port+1}</small></h3>
     <p>Test from pc1 with <code>ping srv1</code>. Commands affect this shared environment.</p>
-    <pre aria-live="polite" className="infra-output">{output}</pre>
-    <form className="infra-toolbar" onSubmit={e=>{e.preventDefault();execute(line);}}><input aria-label="Device command" value={line} onChange={e=>setLine(e.target.value)} placeholder="show ip interface brief"/><button className="primary-button" disabled={!line.trim()}>Run</button></form>
+    <div className="infra-console">
+     <div ref={consoleLog} className="infra-output" role="log" aria-label="Device console output" tabIndex={0}>
+      {transcript.length===0&&<p>{output||'Type help for available commands.'}</p>}
+      {transcript.map((entry,i)=><div className="infra-console-entry" key={i}><div><strong>{entry.prompt}</strong> {entry.input}</div><pre>{entry.output}</pre></div>)}
+     </div>
+     <form className="infra-console-form" onSubmit={e=>{e.preventDefault();execute(line);}}>
+      <span aria-hidden="true">{device.id} (e{port+1})&gt;</span>
+      <input aria-label="Device command" value={line} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={e=>setLine(e.target.value)} placeholder="Type a command"
+       onKeyDown={e=>{
+        if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;
+        if(!transcript.length)return;
+        e.preventDefault();
+        if(historyIndex===null&&e.key==='ArrowDown')return;
+        if(historyIndex===null)draft.current=line;
+        const index=Math.max(0,Math.min(transcript.length,(historyIndex??transcript.length)+(e.key==='ArrowUp'?-1:1)));
+        setHistoryIndex(index===transcript.length?null:index);
+        setLine(index===transcript.length?draft.current:transcript[index].input);
+       }}/>
+      <button className="primary-button" disabled={!line.trim()}>Run</button>
+     </form>
+    </div>
+    <p className="infra-legend"><code>help</code> lists commands · ↑/↓ recalls commands · <code>clear</code> clears the console</p>
    </div>}
     {tool==='Events'&&<div><h3>Recent events</h3><ul>{world.events.slice(-6).reverse().map((e,i)=><li key={i}>{e}</li>)}</ul>
    </div>}
