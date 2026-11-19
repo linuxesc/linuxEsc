@@ -23,6 +23,8 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{const log=consoleLog.current;if(log)log.scrollTop=log.scrollHeight;},[transcript,output]);
  const [tool,setTool]=useState('Connections');
  const [fiberCheck,setFiberCheck]=useState('');
+ const [vlanStep,setVlanStep]=useState(0);
+ const [vlanOutput,setVlanOutput]=useState('');
  const [packetMode,setPacketMode]=useState(false);
  const [packetSource,setPacketSource]=useState('');
  const [packetLog,setPacketLog]=useState<string[]>([]);
@@ -49,9 +51,26 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{if(!started||complete)return;const timer=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer);},[started,complete]);
  useEffect(()=>{if(!complete||lab==='free')return;const elapsed=Math.floor((Date.now()-started)/1000);setScores(old=>{if(old[lab]!==undefined&&old[lab]!<=elapsed)return old;const next={...old,[lab]:elapsed};try{localStorage.setItem('infraquest-completions',JSON.stringify(next));}catch{}return next});},[complete,lab,started]);
  function start(id:Lab){
-  cancelWire();setPacketMode(false);setPacketSource('');setPacketLog([]);setConsoleMode('user');setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
+  setVlanStep(0);setVlanOutput('');setView('Topology');cancelWire();setPacketMode(false);setPacketSource('');setPacketLog([]);setConsoleMode('user');setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
  }
  useEffect(()=>{if(startCooling){start('cooling');setCareer(5);clearLaunch();}},[startCooling,clearLaunch]);
+ function runVlanGuide(){
+  if(vlanStep===1){
+   const result=command(world,'sw1','show vlan brief',0);
+   setVlanOutput(result.output.split('\n').slice(0,3).join('\n'));
+   choose('sw1');setTool('Connections');setVlanStep(2);return;
+  }
+  const result=command(world,'pc1','ping srv1',0);
+  setVlanOutput(result.output);setPacket(result.packet??[]);
+  if(vlanStep===0)setVlanStep(1);
+  if(vlanStep===3&&result.packet?.length)setVlanStep(4);
+ }
+ function applyVlan(value:string){
+  const next=structuredClone(world);
+  const result=command(next,'sw1','switchport access vlan '+value,1);
+  setWorld(next);setPacket([]);setVlanOutput(result.output);
+  if(value==='10')setVlanStep(3);
+ }
  function choose(id:string){select(id);setPort(0);setConsoleMode('user');}
  function patch(change:Partial<Device>){setWorld(old=>({...old,devices:old.devices.map(d=>d.id===device.id?{...d,...change}:d)}));setPacket([]);}
  function add(deviceKind:Kind=kind){
@@ -121,6 +140,8 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const stable=!!route(world,'pc1','srv1').length;
  return <section className="infra">
   <header><div className="accent eyebrow">INFRAQUEST · CAREER MODE</div><h1>Infrastructure Control Center</h1><p>Operate the topology, hosts and racks from a shared simulation.</p></header>
+  {lab!=='vlan'&&<div className="panel infra-brief"><h2>New to network labs?</h2><p>Start with one PC, one switch, and a server you need to reach.</p><button className="primary-button" onClick={()=>{setCareer(1);setGuided(true);start('vlan');}}>Start guided CCNA lab</button></div>}
+
   <details className="panel infra-brief" open={!mission}><summary>{mission?"Change mission or practice settings":"Choose a career path and mission"}</summary><div className="infra-toolbar">
    <label>Career path <select value={career} onChange={e=>{const n=Number(e.target.value);setCareer(n);try{localStorage.setItem('infraquest-career',String(n));}catch{}}}>{paths.map((p,i)=><option key={p} value={i}>{p}</option>)}</select></label>
    <label><input type="checkbox" checked={guided} onChange={e=>setGuided(e.target.checked)}/> Guided</label>
@@ -132,6 +153,19 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   </div>}</details>
   <div className="panel infra-brief"><span className="eyebrow accent">{mission?"CURRENT MISSION":"SANDBOX"}</span><h2>{mission?.title??'Free practice'}</h2>
    <p>{mission?.brief??'Build a topology, configure endpoints and inspect how device changes affect your services.'}</p>
+   {lab==='vlan'&&guided&&<section className="ccna-workbench" aria-label="VLAN walkthrough">
+    <p><strong>{['1. Test connectivity','2. Inspect the switch','3. Fix the server port','4. Retest the connection','Connectivity verified'][vlanStep]}</strong></p>
+    <p>{[
+      'Send a test ping from pc1 to srv1. Both are on the same IP subnet.',
+      'The switch connects the PC and server. Compare VLAN membership on e1 and e2.',
+      'Both endpoints belong to VLAN 10. Choose the VLAN that sw1 port e2 should use.',
+      'Run the same ping again. A successful reply shows your change restored the path.',
+      'The PC can reach the server. A VLAN mismatch kept the switch from forwarding frames between them.',
+    ][vlanStep]}</p>
+    {vlanStep===2?<div className="infra-toolbar">{['10','20'].map(v=><button key={v} className="secondary-button" onClick={()=>applyVlan(v)}>Set e2 to VLAN {v}</button>)}</div>:
+     vlanStep<4&&<button className="primary-button" onClick={runVlanGuide}>{vlanStep===1?'Inspect VLANs on sw1':'Ping from pc1 to srv1'}</button>}
+    {vlanOutput&&<pre className="infra-output" aria-live="polite">{vlanOutput}</pre>}
+   </section>}
    {lab==='fiber'&&fiber&&<ol className="infra-steps">
     <li><strong>Find the broken link</strong><p>sw1 is the network switch. san1 is the storage system. Their fiber cable is <strong>{linkUp(world,fiber)?'up':'down'}</strong>.</p></li>
     <li><strong>Reconnect the existing cable</strong><p>{fiber.connected?'The cable is seated. If the link is still down, inspect both devices.':'The cable is disconnected. Reconnect it before checking storage access.'}</p>{!fiber.connected&&<button className="primary-button" onClick={()=>toggleCable(fiber)}>Reconnect storage fiber</button>}</li>
@@ -145,7 +179,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
    ].slice(0,hintStep).map(h=><li key={h}>{h}</li>)}</ol></div>}
    {lab==='cooling'&&incidentMode==='On-Call Simulation'&&<p>On-call elapsed: {seconds}s. Record isolation and escalation, then verify recovery from pc1.</p>}
    {lab==='cooling'&&incidentMode==='Interview'&&<details><summary>How would you distinguish a cooling incident from a switch outage?</summary><p>{mission?.answer}</p></details>}
-   {mission&&lab!=='cooling'&&lab!=='fiber'&&guided&&<details><summary>Guided steps</summary>{mission.hint}</details>}
+   {mission&&lab!=='cooling'&&lab!=='fiber'&&lab!=='vlan'&&guided&&<details><summary>Guided steps</summary>{mission.hint}</details>}
    {mission&&lab!=='cooling'&&<details><summary>Interview practice</summary><p>How would you diagnose and resolve this incident?</p><p>{mission.answer}</p></details>}
    {mission&&timed&&<p>Elapsed {seconds}s · Suggested target 300s</p>}
    {complete&&<div role="status"><strong className="accent">Mission complete · +150 XP on first completion</strong> <button onClick={()=>setDebrief(!debrief)} className="secondary-button">Debrief</button>{debrief&&<p>{mission?.answer} {lab==='cooling'&&cases[0].solution}</p>}</div>}
