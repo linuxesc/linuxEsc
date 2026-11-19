@@ -17,3 +17,7 @@ body{font-size:16px}.nav-item{font-size:14px}.sidebar-caption{font-size:11px}.si
 
 .mission-navigation{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
 .win-actions{flex-wrap:wrap}.win-actions .mission-navigation{margin:0;justify-content:center}
+
+/* Use a light native menu with explicit dark option text for contrast. */
+.distro-picker select { color-scheme: light; color: #f0f1f2; }
+.distro-picker option { color: #17191e; background-color: #ffffff; }
