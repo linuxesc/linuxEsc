@@ -60,3 +60,15 @@ body{font-size:16px}.nav-item{font-size:14px}.sidebar-caption{font-size:11px}.si
 .home-skill-card:hover{border-color:#79a752}
 .home-skill-card span{color:#aab8bd;font-size:14px}
 @media(max-width:730px){.home-lab,.home-skill-grid{grid-template-columns:1fr}.home-lab-task{border-right:0;border-bottom:1px solid #334b45}.home-launch-nav{gap:4px}}
+
+.sidebar{background:linear-gradient(165deg,#11141c,#0c0e15);overflow-y:auto}
+.sidebar .brand{flex-shrink:0}
+.sidebar .grouped-sidebar{display:grid;gap:18px;margin:18px 0 14px;padding-top:15px;border-top:1px solid #ffffff25}
+.grouped-sidebar section{display:grid;gap:5px}
+.grouped-sidebar h2{margin:0 0 4px;padding-inline:7px;color:#aeb3c0;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.16em}
+.grouped-sidebar .nav-item{min-height:38px;gap:8px;padding:8px 9px;border:1px solid #ffffff13;border-radius:9px;background:#1a1e29;color:#edf0f6;font-size:clamp(11px,1vw,14px);text-align:left}
+.grouped-sidebar .nav-item>svg{flex-shrink:0}
+.grouped-sidebar .nav-item>span:not(.nav-count):not(.nav-new){white-space:normal}
+.grouped-sidebar .nav-item:hover{background:#242938}
+.grouped-sidebar .nav-item.active{background:#1c2b19;color:#b4f272;border-color:#769e54;border-left:3px solid #b4f272;padding-left:7px}
+.grouped-sidebar .nav-item.active::before{display:none}
