@@ -23,6 +23,20 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{const log=consoleLog.current;if(log)log.scrollTop=log.scrollHeight;},[transcript,output]);
  const [tool,setTool]=useState('Connections');
  const [fiberCheck,setFiberCheck]=useState('');
+ const [wiring,setWiring]=useState(false);
+ const [wireFrom,setWireFrom]=useState('');
+ const [wireTo,setWireTo]=useState('');
+ const [wirePorts,setWirePorts]=useState({a:'',b:''});
+ const [wireMessage,setWireMessage]=useState('');
+ const consoleInput=useRef<HTMLInputElement>(null);
+ const toolsPanel=useRef<HTMLElement>(null);
+ const [focusConsole,setFocusConsole]=useState(false);
+ useEffect(()=>{
+  if(!focusConsole)return;
+  toolsPanel.current?.scrollIntoView({block:'start'});
+  consoleInput.current?.focus({preventScroll:true});
+  setFocusConsole(false);
+ },[focusConsole]);
  const [drag,setDrag]=useState<string|null>(null);
  const mission=catalog.find(m=>m.id===lab);
  const device=world.devices.find(d=>d.id===selected)??world.devices[0];
@@ -32,7 +46,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{if(!started||complete)return;const timer=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer);},[started,complete]);
  useEffect(()=>{if(!complete||lab==='free')return;const elapsed=Math.floor((Date.now()-started)/1000);setScores(old=>{if(old[lab]!==undefined&&old[lab]!<=elapsed)return old;const next={...old,[lab]:elapsed};try{localStorage.setItem('infraquest-completions',JSON.stringify(next));}catch{}return next});},[complete,lab,started]);
  function start(id:Lab){
-  setConsoleMode('user');setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
+  cancelWire();setConsoleMode('user');setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
  }
  useEffect(()=>{if(startCooling){start('cooling');setCareer(5);clearLaunch();}},[startCooling,clearLaunch]);
  function choose(id:string){select(id);setPort(0);setConsoleMode('user');}
@@ -43,6 +57,30 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   if(!unit){setOutput('Compute rack has no free units.');return;}
   const next=makeDevice(kind.toLowerCase()+'-'+crypto.randomUUID().slice(0,8),kind,index);
   next.room='Compute';next.rack=2;next.unit=unit;setWorld({...world,devices:[...world.devices,next]});choose(next.id);
+ }
+ function cancelWire(){
+  setWiring(false);setWireFrom('');setWireTo('');setWirePorts({a:'',b:''});setWireMessage('');
+ }
+ function openConsole(id:string){
+  if(selected!==id)choose(id);
+  setTool('Console');setFocusConsole(true);
+ }
+ function chooseOnMap(id:string){
+  if(!wiring){if(selected!==id)choose(id);return;}
+  if(!wireFrom){setWireFrom(id);return;}
+  if(id!==wireFrom){setWireTo(id);setWirePorts({a:'',b:''});setWireMessage('');}
+ }
+ function portInUse(id:string,port:number){
+  return world.links.some(link=>(link.a===id&&link.ap===port)||(link.b===id&&link.bp===port));
+ }
+ function connectOnMap(){
+  if(!wireFrom||!wireTo||wirePorts.a===''||wirePorts.b==='')return;
+  const ap=Number(wirePorts.a),bp=Number(wirePorts.b);
+  if(portInUse(wireFrom,ap)||portInUse(wireTo,bp)){setWireMessage('A selected port is already occupied.');return;}
+  const link:Link={a:wireFrom,ap,b:wireTo,bp,media,connected:true};
+  setWorld(previous=>({...previous,links:[...previous.links,link],events:[...previous.events,wireFrom+' e'+(ap+1)+' cabled to '+wireTo+' e'+(bp+1)]}));
+  setPacket([]);cancelWire();choose(wireFrom);setTool('Connections');
+  setWireMessage(wireFrom+' e'+(ap+1)+' connected to '+wireTo+' e'+(bp+1)+'.');
  }
  function cable(){
   const other=world.devices.find(d=>d.id===target);
@@ -105,10 +143,25 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   </div>
   <div className="infra-toolbar" aria-label="Infrastructure views">{['Topology','Racks','Operations'].map(v=><button className={v===view?'primary-button':'secondary-button'} key={v} onClick={()=>setView(v)}>{v}</button>)}</div>
   {view==='Topology'&&<div className="panel infra-diagram">
-   <details className="infra-builder"><summary>Add equipment or rearrange the map</summary><div className="infra-toolbar"><label>Equipment <select value={kind} onChange={e=>setKind(e.target.value as Kind)}>{kinds.map(k=><option key={k}>{k}</option>)}</select></label><button className="secondary-button" onClick={add}>Add equipment</button><span>Drag devices to position them.</span></div></details><p className="infra-legend">Select a device to inspect it. Green means up, red means down, and dashed lines are fiber.</p>
+   <div className="infra-toolbar">
+    <button className={wiring?'primary-button':'secondary-button'} aria-pressed={wiring} onClick={()=>wiring?cancelWire():(setWireMessage(''),setWiring(true))}>{wiring?'Cancel cabling':'Connect devices'}</button>
+    <button className="secondary-button" onClick={()=>openConsole(device.id)}>Open {device.id} console</button>
+   </div>
+   {wiring&&<div className="infra-toolbar" aria-live="polite">
+    <p>{!wireFrom?'Select the first device on the map.':!wireTo?'Select a second device to connect to '+wireFrom+'.':wireFrom+' → '+wireTo}</p>
+    {wireTo&&<>{([['a',wireFrom],['b',wireTo]] as const).map(([end,id])=><label key={end}>{id} port
+     <select value={wirePorts[end]} onChange={e=>setWirePorts(previous=>({...previous,[end]:e.target.value}))}>
+      <option value="">Choose port</option>{world.devices.find(d=>d.id===id)?.ports.map((_,i)=><option key={i} value={i} disabled={portInUse(id,i)}>e{i+1}{portInUse(id,i)?' (occupied)':''}</option>)}
+     </select></label>)}
+     <label>Cable type<select value={media} onChange={e=>setMedia(e.target.value as Link['media'])}><option>Ethernet</option><option>Fiber</option></select></label>
+     <button className="primary-button" disabled={wirePorts.a===''||wirePorts.b===''} onClick={connectOnMap}>Connect ports</button>
+    </>}
+   </div>}
+   {wireMessage&&<p role="status">{wireMessage}</p>}
+   <details className="infra-builder"><summary>Add equipment or rearrange the map</summary><div className="infra-toolbar"><label>Equipment <select value={kind} onChange={e=>setKind(e.target.value as Kind)}>{kinds.map(k=><option key={k}>{k}</option>)}</select></label><button className="secondary-button" onClick={add}>Add equipment</button><span>Drag devices to position them.</span></div></details><p className="infra-legend">Click a device to select it. Double-click to open its console. Green means up, red means down, and dashed lines are fiber.</p>
    <div className="infra-canvas" style={{height}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const rect=e.currentTarget.getBoundingClientRect();setWorld(old=>({...old,devices:old.devices.map(d=>d.id===drag?{...d,x:Math.max(0,Math.min(rect.width-120,e.clientX-rect.left-55)),y:Math.max(0,Math.min(height-60,e.clientY-rect.top-26))}:d)}));setDrag(null);}}>
     <svg aria-hidden="true" width="100%" height={height}>{world.links.map((l,i)=>{const a=world.devices.find(d=>d.id===l.a)!,b=world.devices.find(d=>d.id===l.b)!;const onPath=packet.some((id,i)=>(id===l.a&&packet[i+1]===l.b)||(id===l.b&&packet[i+1]===l.a));return <g key={i}><line x1={a.x+55} y1={a.y+22} x2={b.x+55} y2={b.y+22} stroke={linkUp(world,l)?'#80cb71':'#f47780'} strokeDasharray={l.media==='Fiber'?'5 4':undefined} strokeWidth={onPath?5:2}/>{onPath&&<circle r="5" fill="#fff"><animateMotion dur="1s" repeatCount="2" path={`M${a.x+55} ${a.y+22} L${b.x+55} ${b.y+22}`}/></circle>}</g>})}</svg>
-    {world.devices.map(d=><button key={d.id} draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',d.id);setDrag(d.id);}} className={'infra-node '+(d.id===device.id?'selected':'')} style={{left:d.x,top:d.y}} onClick={()=>choose(d.id)}><strong>{d.id}</strong><small>{d.kind} · {d.power?'On':'Off'}</small></button>)}
+    {world.devices.map(d=><button key={d.id} draggable={!wiring} onDragStart={e=>{e.dataTransfer.setData('text/plain',d.id);setDrag(d.id);}} className={'infra-node '+(d.id===device.id||d.id===wireFrom||d.id===wireTo?'selected':'')} style={{left:d.x,top:d.y}} onClick={()=>chooseOnMap(d.id)} onDoubleClick={()=>{if(!wiring)openConsole(d.id);}}><strong>{d.id}</strong><small>{d.kind} · {d.power?'On':'Off'}</small></button>)}
    </div>
   </div>}
   {view==='Racks'&&<div className="infra-racks">{['Network','Compute'].map(room=><div className="panel infra-brief" key={room}><h2>{room} room</h2>{[1,2].map(rack=><section className="infra-rack" key={rack}><h3>Rack {rack} · {world.devices.filter(d=>d.room===room&&d.rack===rack&&d.unit>0).length}/42 U occupied</h3>{world.devices.filter(d=>d.room===room&&d.rack===rack&&d.unit>0).sort((a,b)=>b.unit-a.unit).map(d=><button key={d.id} className={d.id===device.id?'primary-button':'secondary-button'} onClick={()=>choose(d.id)}>U{d.unit} · {d.id} · {d.power?'Powered':'Off'}</button>)}</section>)}</div>)}</div>}
@@ -120,7 +173,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
    ['Kubernetes',world.nodeReady?'worker-2 schedulable':'worker-2 cordoned','kubectl get pods'],
    ['Data center',(world.redundant?'Dual power':'Single power feed')+' · '+(world.diskHealthy?'RAID healthy':'RAID degraded'),'show hardware'],
   ].map(([title,status,cmd])=><div key={title} className="panel infra-brief"><h3>{title}</h3><p>{status}</p><button className="secondary-button" onClick={()=>{setTool('Console');execute(cmd);}}>Inspect</button></div>)}</div>}
-  <section className="panel infra-brief" aria-label="Device tools"><h2>Device tools</h2>
+  <section ref={toolsPanel} className="panel infra-brief" aria-label="Device tools"><h2>Device tools</h2>
    <div className="infra-toolbar">{['Connections','Console','Equipment','Events'].map(name=><button key={name} className={name===tool?'primary-button':'secondary-button'} aria-pressed={name===tool} onClick={()=>setTool(name)}>{name}</button>)}</div>
     <label>Device<select value={device.id} onChange={e=>choose(e.target.value)}>{world.devices.map(d=><option key={d.id}>{d.id}</option>)}</select></label>
     {tool==='Equipment'&&<div className="infra-form">
@@ -144,7 +197,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
      </div>
      <form className="infra-console-form" onSubmit={e=>{e.preventDefault();execute(line);}}>
       <span aria-hidden="true">{consolePrompt(device,consoleMode,port)}</span>
-      <input aria-label="Device command" value={line} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={e=>setLine(e.target.value)} placeholder="Type a command"
+      <input ref={consoleInput} aria-label="Device command" value={line} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={e=>setLine(e.target.value)} placeholder="Type a command"
        onKeyDown={e=>{
         if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;
         if(!transcript.length)return;
