@@ -4,7 +4,7 @@ import {useEffect,useState} from 'react';
 import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,reachableServers,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
 
 type Scores=Partial<Record<Lab,number>>;
-export default function Infrastructure({openLinux}:{openLinux:()=>void}){
+export default function Infrastructure({openLinux,practiceUntil,startPracticeHour}:{openLinux:()=>void;practiceUntil:number;startPracticeHour:()=>void}){
  const [world,setWorld]=useState<Infra>(()=>scenario('free'));
  const [lab,setLab]=useState<Lab>('free'),[view,setView]=useState('Topology'),[career,setCareer]=useState(0);
  const [selected,select]=useState('sw1'),[port,setPort]=useState(0),[kind,setKind]=useState<Kind>('Server');
@@ -53,10 +53,10 @@ export default function Infrastructure({openLinux}:{openLinux:()=>void}){
    <label>Career path <select value={career} onChange={e=>{const n=Number(e.target.value);setCareer(n);try{localStorage.setItem('infraquest-career',String(n));}catch{}}}>{paths.map((p,i)=><option key={p} value={i}>{p}</option>)}</select></label>
    <label><input type="checkbox" checked={guided} onChange={e=>setGuided(e.target.checked)}/> Guided</label>
    <label><input type="checkbox" checked={timed} onChange={e=>setTimed(e.target.checked)}/> Timed</label>
-   <span>{xp} infrastructure XP · {Object.keys(scores).length}/{catalog.length} missions</span>{xp>0&&<span className="tag tag-green">First infrastructure recovery</span>}
+   <button className="secondary-button" onClick={startPracticeHour}>{practiceUntil>Date.now()?'All missions unlocked until '+new Date(practiceUntil).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+' · Restart hour':'Unlock all missions for 1 hour'}</button><span>{xp} infrastructure XP · {Object.keys(scores).length}/{catalog.length} missions</span>{xp>0&&<span className="tag tag-green">First infrastructure recovery</span>}
   </div>
   {career===0?<p><button onClick={openLinux} className="primary-button">Open Linux missions</button></p>:<div className="infra-labs">
-   {catalog.filter(m=>m.path===career).map(m=><button className={lab===m.id?'primary-button':'secondary-button'} key={m.id} disabled={m.level>0&&catalog.some(prior=>prior.path===m.path&&prior.level<m.level)&&!catalog.some(prior=>prior.path===m.path&&prior.level===m.level-1&&scores[prior.id]!==undefined)} onClick={()=>start(m.id)}>{scores[m.id]!==undefined?'✓ ':''}{m.title} · {levels[m.level]}</button>)}
+   {catalog.filter(m=>m.path===career).map(m=><button className={lab===m.id?'primary-button':'secondary-button'} key={m.id} disabled={practiceUntil<=Date.now()&&m.level>0&&catalog.some(prior=>prior.path===m.path&&prior.level<m.level)&&!catalog.some(prior=>prior.path===m.path&&prior.level===m.level-1&&scores[prior.id]!==undefined)} onClick={()=>start(m.id)}>{scores[m.id]!==undefined?'✓ ':''}{m.title} · {levels[m.level]}</button>)}
   </div>}
   <div className="panel infra-brief"><h2>{mission?.title??'Free practice'}</h2>
    <p>{mission?.brief??'Build a topology, configure endpoints and inspect how device changes affect your services.'}</p>
