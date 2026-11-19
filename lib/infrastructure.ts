@@ -152,3 +152,32 @@ export function command(s:Infra,id:string,input:string,port:number):{output:stri
  if(replicas&&Number(replicas[1])<=20){s.replicas=Number(replicas[1]);return result('Deployment scaled.');}
  return result('Unsupported command in this simulation. Type help or inspect the lab hint.');
 }
+
+export type ConsoleMode = 'user'|'privileged'|'config'|'interface';
+
+export function consolePrompt(device:Device,mode:ConsoleMode,port:number){
+ if(device.kind!=='Switch'&&device.kind!=='Router')return device.id+' (e'+(port+1)+')>';
+ const suffix={user:'>',privileged:'#',config:'(config)#',interface:'(config-if)#'};
+ return device.id+suffix[mode];
+}
+
+export function deviceCommand(world:Infra,device:Device,input:string,port:number,mode:ConsoleMode){
+ const raw=input.trim().toLowerCase().replace(/\s+/g,' ');
+ const network=device.kind==='Switch'||device.kind==='Router';
+ const reply=(output:string,nextMode=mode)=>({output,port,mode:nextMode,packet:undefined as string[]|undefined});
+ if(!network)return {...command(world,device.id,input,port),mode};
+ if(raw==='en'||raw==='enable')return mode==='user'?reply('','privileged'):reply(mode==='privileged'?'':'Exit configuration mode first.');
+ if(raw==='disable'&&mode==='privileged')return reply('','user');
+ if(['conf t','configure t','conf terminal','configure terminal'].includes(raw)){
+  return mode==='privileged'?reply('Enter configuration commands, one per line.','config'):reply('Enter privileged mode with enable first.');
+ }
+ if(raw==='exit')return reply('',{user:'user',privileged:'user',config:'privileged',interface:'config'}[mode] as ConsoleMode);
+ if(raw==='end')return reply('',mode==='user'?'user':'privileged');
+ if(raw==='?'||raw==='help')return reply('enable (en) | configure terminal (conf t) | interface eN | exit | end\nshow interfaces | show ip interface brief | show vlan brief | show ip route | show running-config\nInterface commands: shutdown, no shutdown, switchport access vlan N. Use do show in configuration mode.');
+ const aliases:Record<string,string>={'sh int':'show interfaces','sh ip int br':'show ip interface brief','show ip int br':'show ip interface brief','sh run':'show running-config','show run':'show running-config','sh vlan br':'show vlan brief'};
+ const stripped=raw.replace(/^do /,'');
+ const interfaceName=stripped.match(/^(?:int|interface)\s+(?:e|ethernet)\s*(\d+)$/);
+ const normalized=interfaceName?'interface e'+interfaceName[1]:aliases[stripped]??stripped;
+ const result=command(world,device.id,normalized,port);
+ return {...result,mode:interfaceName&&/^Selected e/.test(result.output)?'interface' as const:mode};
+}

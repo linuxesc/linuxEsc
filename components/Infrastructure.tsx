@@ -2,7 +2,7 @@
 
 import cases from '@/data/incidents.json';
 import {useEffect,useRef,useState} from 'react';
-import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,reachableServers,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
+import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,deviceCommand,consolePrompt,reachableServers,type ConsoleMode,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
 
 type Scores=Partial<Record<Lab,number>>;
 export default function Infrastructure({openLinux,practiceUntil,startPracticeHour,startCooling,clearLaunch}:{startCooling:boolean;clearLaunch:()=>void;openLinux:()=>void;practiceUntil:number;startPracticeHour:()=>void}){
@@ -15,6 +15,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const [guided,setGuided]=useState(true),[timed,setTimed]=useState(false),[debrief,setDebrief]=useState(false);
  const [incidentMode,setIncidentMode]=useState('Learning');
  const [hintStep,setHintStep]=useState(0);
+ const [consoleMode,setConsoleMode]=useState<ConsoleMode>('user');
  const [transcript,setTranscript]=useState<{prompt:string;input:string;output:string}[]>([]);
  const [historyIndex,setHistoryIndex]=useState<number|null>(null);
  const draft=useRef('');
@@ -31,10 +32,10 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{if(!started||complete)return;const timer=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer);},[started,complete]);
  useEffect(()=>{if(!complete||lab==='free')return;const elapsed=Math.floor((Date.now()-started)/1000);setScores(old=>{if(old[lab]!==undefined&&old[lab]!<=elapsed)return old;const next={...old,[lab]:elapsed};try{localStorage.setItem('infraquest-completions',JSON.stringify(next));}catch{}return next});},[complete,lab,started]);
  function start(id:Lab){
-  setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
+  setConsoleMode('user');setTranscript([]);setHistoryIndex(null);setLine('');draft.current='';setTool(id==='install'||id==='free'?'Equipment':'Connections');setFiberCheck('');setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
  }
  useEffect(()=>{if(startCooling){start('cooling');setCareer(5);clearLaunch();}},[startCooling,clearLaunch]);
- function choose(id:string){select(id);setPort(0);}
+ function choose(id:string){select(id);setPort(0);setConsoleMode('user');}
  function patch(change:Partial<Device>){setWorld(old=>({...old,devices:old.devices.map(d=>d.id===device.id?{...d,...change}:d)}));setPacket([]);}
  function add(){
   const index=world.devices.length;
@@ -55,8 +56,9 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   if(!input.trim())return;
   setHistoryIndex(null);draft.current='';
   if(input.trim()==='clear'){setTranscript([]);setOutput('');setLine('');return;}
-  const next=structuredClone(world),result=command(next,device.id,input,port);
-  setTranscript(entries=>[...entries.slice(-199),{prompt:device.id+' (e'+(port+1)+')>',input,output:result.output}]);
+  const next=structuredClone(world),result=deviceCommand(next,device,input,port,consoleMode);
+  setConsoleMode(result.mode);
+  setTranscript(entries=>[...entries.slice(-199),{prompt:consolePrompt(device,consoleMode,port),input,output:result.output}]);
   setWorld(next);setPort(result.port);setOutput(result.output);setPacket(result.packet??[]);setLine('');
  }
  function toggleCable(link:Link){
@@ -141,7 +143,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
       {transcript.map((entry,i)=><div className="infra-console-entry" key={i}><div><strong>{entry.prompt}</strong> {entry.input}</div><pre>{entry.output}</pre></div>)}
      </div>
      <form className="infra-console-form" onSubmit={e=>{e.preventDefault();execute(line);}}>
-      <span aria-hidden="true">{device.id} (e{port+1})&gt;</span>
+      <span aria-hidden="true">{consolePrompt(device,consoleMode,port)}</span>
       <input aria-label="Device command" value={line} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={e=>setLine(e.target.value)} placeholder="Type a command"
        onKeyDown={e=>{
         if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;

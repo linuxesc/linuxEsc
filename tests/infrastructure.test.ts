@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {command,scenario,solved,route,makeDevice,type Lab,type Infra} from '../lib/infrastructure';
+import {command,deviceCommand,consolePrompt,scenario,solved,route,makeDevice,type Lab,type Infra} from '../lib/infrastructure';
 
 function run(world:Infra,id:string,...lines:string[]){
  let port=0;
@@ -52,4 +52,20 @@ test('Cooling incident requires Facilities clearance and client verification',()
  run(world,'srv1','power off','power on');
  assert.equal(solved(world,'cooling'),false);
  assert.equal(solved(scenario('cooling'),'cooling'),false);
+});
+
+test('Cisco console accepts enable and follows configuration prompts',()=>{
+ const world=scenario('vlan');
+ const sw=world.devices.find(d=>d.id==='sw1')!;
+ const enabled=deviceCommand(world,sw,'en',0,'user');
+ assert.equal(consolePrompt(sw,enabled.mode,0),'sw1#');
+ const config=deviceCommand(world,sw,'conf t',0,enabled.mode);
+ assert.equal(consolePrompt(sw,config.mode,0),'sw1(config)#');
+ const iface=deviceCommand(world,sw,'int Ethernet 2',0,config.mode);
+ assert.equal(iface.port,1);
+ assert.equal(consolePrompt(sw,iface.mode,iface.port),'sw1(config-if)#');
+ deviceCommand(world,sw,'switchport access vlan 10',iface.port,iface.mode);
+ assert.equal(solved(world,'vlan'),true);
+ assert.equal(deviceCommand(world,sw,'end',iface.port,iface.mode).mode,'privileged');
+ assert.equal(deviceCommand(world,sw,'enable',0,'user').mode,'privileged');
 });
