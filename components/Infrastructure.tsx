@@ -142,6 +142,8 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
    </div>
   </div>
   <div className="infra-toolbar" aria-label="Infrastructure views">{['Topology','Racks','Operations'].map(v=><button className={v===view?'primary-button':'secondary-button'} key={v} onClick={()=>setView(v)}>{v}</button>)}</div>
+  <div className="infra-workspace">
+   <div className="infra-workspace-view">
   {view==='Topology'&&<div className="panel infra-diagram">
    <div className="infra-toolbar">
     <button className={wiring?'primary-button':'secondary-button'} aria-pressed={wiring} onClick={()=>wiring?cancelWire():(setWireMessage(''),setWiring(true))}>{wiring?'Cancel cabling':'Connect devices'}</button>
@@ -173,7 +175,8 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
    ['Kubernetes',world.nodeReady?'worker-2 schedulable':'worker-2 cordoned','kubectl get pods'],
    ['Data center',(world.redundant?'Dual power':'Single power feed')+' · '+(world.diskHealthy?'RAID healthy':'RAID degraded'),'show hardware'],
   ].map(([title,status,cmd])=><div key={title} className="panel infra-brief"><h3>{title}</h3><p>{status}</p><button className="secondary-button" onClick={()=>{setTool('Console');execute(cmd);}}>Inspect</button></div>)}</div>}
-  <section ref={toolsPanel} className="panel infra-brief" aria-label="Device tools"><h2>Device tools</h2>
+   </div>
+  <section ref={toolsPanel} className="panel infra-brief infra-workspace-tools" aria-label="Device tools"><h2>Device tools</h2>
    <div className="infra-toolbar">{['Connections','Console','Equipment','Events'].map(name=><button key={name} className={name===tool?'primary-button':'secondary-button'} aria-pressed={name===tool} onClick={()=>setTool(name)}>{name}</button>)}</div>
     <label>Device<select value={device.id} onChange={e=>choose(e.target.value)}>{world.devices.map(d=><option key={d.id}>{d.id}</option>)}</select></label>
     {tool==='Equipment'&&<div className="infra-form">
@@ -216,5 +219,6 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
     {tool==='Events'&&<div><h3>Recent events</h3><ul>{world.events.slice(-6).reverse().map((e,i)=><li key={i}>{e}</li>)}</ul>
    </div>}
   </section>
+  </div>
  </section>;
 }

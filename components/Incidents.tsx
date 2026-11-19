@@ -64,13 +64,15 @@ export default function Incidents({startCooling}:{startCooling:()=>void}){
  return <section className="infra">
   <header><h1>Live Infrastructure Issues</h1><p>Reviewed historical cases and reports from the Google Cloud public status feed.</p></header>
   <div className="panel infra-brief"><p role="status">{lastSync?'Last successful synchronization '+new Date(lastSync).toLocaleString(): 'No successful feed synchronization recorded.'} {fresh?(process.env.NEXT_PUBLIC_INCIDENTS_API?'Scheduled feed current.':'Public feed refreshed in this browser.'):offline?'Feed unavailable.':'Showing historical or cached data.'}</p></div>
-  <div className="infra-toolbar">
+  <div className="incident-layout">
+  <aside className="panel infra-brief incident-filters" aria-label="Incident filters"><h2>Filters</h2><div className="infra-toolbar">
    <label>Search incidents<input type="search" placeholder="Error, command, technology, or version" value={query} onChange={e=>{setSelected(null);setQuery(e.target.value);}}/></label>
    <label>Library<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{categories.map(x=><option key={x}>{x}</option>)}</select></label>
    <label>Resolution<select value={status} onChange={e=>setStatus(e.target.value)}><option value="">All resolution statuses</option>{statusOptions.map(x=><option key={x}>{x}</option>)}</select></label>
    <label>Report date<select value={period} onChange={e=>setPeriod(e.target.value)}>{periods.map(x=><option key={x}>{x}</option>)}</select></label>
-  </div>
-  <p>{results.length} matching reports</p>
+  </div></aside>
+  <div className="incident-results"><p aria-live="polite">{results.length} matching reports</p>
+  {!results.length&&<div className="panel infra-brief"><p>No reports match these filters.</p><button className="secondary-button" onClick={()=>{setQuery('');setCategory('');setStatus('');setPeriod('All dates');setSelected(null);}}>Clear filters</button></div>}
   {results.map(row=><article key={row.id} className="panel infra-brief">
    <h2>{row.title}</h2><p>{row.technology} · {row.difficulty??'Difficulty pending review'} · {row.incidentStatus} · {row.status}</p>
    <p>{row.source} · Reported <time dateTime={row.published}>{row.published}</time> · {row.discovered?'Discovered '+new Date(row.discovered).toLocaleString():'Curated case'}</p>
@@ -81,5 +83,6 @@ export default function Incidents({startCooling}:{startCooling:()=>void}){
    {row.related?.map(id=>{const related=rows.find(item=>item.id===id);return related&&<button key={id} className="text-button" onClick={()=>{setSelected(id);setCategory('');setStatus('');setPeriod('All dates');setQuery(related.title);}}>Related: {related.title}</button>;})}
    {row.lab==='cooling'&&<p><button className="primary-button" onClick={startCooling}>Play cooling incident</button></p>}
   </article>)}
+  </div></div>
  </section>;
 }
