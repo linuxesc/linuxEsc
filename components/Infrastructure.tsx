@@ -2,7 +2,7 @@
 
 import cases from '@/data/incidents.json';
 import {useEffect,useRef,useState} from 'react';
-import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,deviceCommand,consolePrompt,reachableServers,type ConsoleMode,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
+import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,linkStatus,route,solved,command,deviceCommand,consolePrompt,reachableServers,type ConsoleMode,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
 
 type Scores=Partial<Record<Lab,number>>;
 export default function Infrastructure({openLinux,practiceUntil,startPracticeHour,startCooling,clearLaunch}:{startCooling:boolean;clearLaunch:()=>void;openLinux:()=>void;practiceUntil:number;startPracticeHour:()=>void}){
@@ -16,7 +16,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const [incidentMode,setIncidentMode]=useState('Learning');
  const [hintStep,setHintStep]=useState(0);
  const [consoleMode,setConsoleMode]=useState<ConsoleMode>('user');
- const [transcript,setTranscript]=useState<{prompt:string;input:string;output:string}[]>([]);
+ const [transcript,setTranscript]=useState<{deviceId:string;prompt:string;input:string;output:string}[]>([]);
  const [historyIndex,setHistoryIndex]=useState<number|null>(null);
  const draft=useRef('');
  const consoleLog=useRef<HTMLDivElement>(null);
@@ -45,6 +45,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const [drag,setDrag]=useState<string|null>(null);
  const mission=catalog.find(m=>m.id===lab);
  const device=world.devices.find(d=>d.id===selected)??world.devices[0];
+ const deviceHistory=transcript.filter(entry=>entry.deviceId===device.id);
  const complete=solved(world,lab);
  const xp=Object.keys(scores).length*150;
  useEffect(()=>{try{setScores(JSON.parse(localStorage.getItem('infraquest-completions')??'{}'));setCareer(Number(localStorage.getItem('infraquest-career')??0));}catch{}},[]);
@@ -71,7 +72,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   setWorld(next);setPacket([]);setVlanOutput(result.output);
   if(value==='10')setVlanStep(3);
  }
- function choose(id:string){select(id);setPort(0);setConsoleMode('user');}
+ function choose(id:string){select(id);setPort(0);setConsoleMode('user');setHistoryIndex(null);setLine('');draft.current='';}
  function patch(change:Partial<Device>){setWorld(old=>({...old,devices:old.devices.map(d=>d.id===device.id?{...d,...change}:d)}));setPacket([]);}
  function add(deviceKind:Kind=kind){
   const index=world.devices.length;
@@ -124,10 +125,10 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  function execute(input:string){
   if(!input.trim())return;
   setHistoryIndex(null);draft.current='';
-  if(input.trim()==='clear'){setTranscript([]);setOutput('');setLine('');return;}
+  if(input.trim()==='clear'){setTranscript(entries=>entries.filter(entry=>entry.deviceId!==device.id));setOutput('');setLine('');return;}
   const next=structuredClone(world),result=deviceCommand(next,device,input,port,consoleMode);
   setConsoleMode(result.mode);
-  setTranscript(entries=>[...entries.slice(-199),{prompt:consolePrompt(device,consoleMode,port),input,output:result.output}]);
+  setTranscript(entries=>[...entries.slice(-199),{deviceId:device.id,prompt:consolePrompt(device,consoleMode,port),input,output:result.output}]);
   setWorld(next);setPort(result.port);setOutput(result.output);setPacket(result.packet??[]);setLine('');
  }
  function toggleCable(link:Link){
@@ -153,6 +154,11 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   </div>}</details>
   <div className="panel infra-brief"><span className="eyebrow accent">{mission?"CURRENT MISSION":"SANDBOX"}</span><h2>{mission?.title??'Free practice'}</h2>
    <p>{mission?.brief??'Build a topology, configure endpoints and inspect how device changes affect your services.'}</p>
+   {lab==='vlan'&&<div className="vlan-lab-map" aria-label="Lab devices">
+    <button className="secondary-button" onClick={()=>openConsole('pc1')}><strong>pc1</strong><span>Client · sends the ping</span></button>
+    <button className="secondary-button" onClick={()=>openConsole('sw1')}><strong>sw1</strong><span>Switch · e1 to PC, e2 to server</span></button>
+    <button className="secondary-button" onClick={()=>openConsole('srv1')}><strong>srv1</strong><span>Server · receives the ping</span></button>
+   </div>}
    {lab==='vlan'&&guided&&<section className="ccna-workbench" aria-label="VLAN walkthrough">
     <p><strong>{['1. Test connectivity','2. Inspect the switch','3. Fix the server port','4. Retest the connection','Connectivity verified'][vlanStep]}</strong></p>
     <p>{[
@@ -190,7 +196,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
   <div className="infra-toolbar" aria-label="Infrastructure views">{['Topology','Racks','Operations'].map(v=><button className={v===view?'primary-button':'secondary-button'} key={v} onClick={()=>setView(v)}>{v}</button>)}</div>
   <div className="infra-workspace">
    <div className="infra-workspace-view">
-  {view==='Topology'&&<div className="panel infra-diagram">
+  {view==='Topology'&&<div className="panel infra-diagram"><h2>Network map</h2>
    <div className="infra-toolbar">
     <button className={wiring?'primary-button':'secondary-button'} aria-pressed={wiring} onClick={()=>{setPacketMode(false);setPacketSource('');if(wiring)cancelWire();else{setWireMessage('');setWiring(true);}}}>{wiring?'Cancel cabling':'Connect devices'}</button>
     <button className="secondary-button" onClick={()=>openConsole(device.id)}>Open {device.id} console</button>
@@ -216,9 +222,9 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
     </div>
     {packetLog.length>0&&<details open><summary>Packet results</summary><ol aria-live="polite">{packetLog.map((entry,i)=><li key={i}>{entry}</li>)}</ol></details>}
    </div>}
-   <details className="infra-builder"><summary>Add equipment or rearrange the map</summary><div className="infra-toolbar"><label>Equipment <select value={kind} onChange={e=>setKind(e.target.value as Kind)}>{kinds.map(k=><option key={k}>{k}</option>)}</select></label><button className="secondary-button" onClick={()=>add()}>Add equipment</button><span>Drag devices to position them.</span></div></details><p className="infra-legend">Click a device to select it. Double-click to open its console. Green means up, red means down, and dashed lines are fiber.</p>
+   <details className="infra-builder"><summary>Add equipment or rearrange the map</summary><div className="infra-toolbar"><label>Equipment <select value={kind} onChange={e=>setKind(e.target.value as Kind)}>{kinds.map(k=><option key={k}>{k}</option>)}</select></label><button className="secondary-button" onClick={()=>add()}>Add equipment</button><span>Drag devices to position them.</span></div></details><p className="infra-legend">Click a device to select it. Double-click to open its console. Green can forward traffic. Amber means the cable is up but VLANs differ. Red means the link is down. Dashed lines are fiber.</p>
    <div className="infra-canvas" style={{height}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const rect=e.currentTarget.getBoundingClientRect();setWorld(old=>({...old,devices:old.devices.map(d=>d.id===drag?{...d,x:Math.max(0,Math.min(rect.width-120,e.clientX-rect.left-55)),y:Math.max(0,Math.min(height-60,e.clientY-rect.top-26))}:d)}));setDrag(null);}}>
-    <svg aria-hidden="true" width="100%" height={height}>{world.links.map((l,i)=>{const a=world.devices.find(d=>d.id===l.a)!,b=world.devices.find(d=>d.id===l.b)!;const onPath=packet.some((id,i)=>(id===l.a&&packet[i+1]===l.b)||(id===l.b&&packet[i+1]===l.a));return <g key={i}><line x1={a.x+55} y1={a.y+22} x2={b.x+55} y2={b.y+22} stroke={linkUp(world,l)?'#80cb71':'#f47780'} strokeDasharray={l.media==='Fiber'?'5 4':undefined} strokeWidth={onPath?5:2}/>{onPath&&<circle r="5" fill="#fff"><animateMotion dur="1s" repeatCount="2" path={`M${a.x+55} ${a.y+22} L${b.x+55} ${b.y+22}`}/></circle>}</g>})}</svg>
+    <svg aria-hidden="true" width="100%" height={height}>{world.links.map((l,i)=>{const a=world.devices.find(d=>d.id===l.a)!,b=world.devices.find(d=>d.id===l.b)!;const onPath=packet.some((id,i)=>(id===l.a&&packet[i+1]===l.b)||(id===l.b&&packet[i+1]===l.a));return <g key={i}><line x1={a.x+55} y1={a.y+22} x2={b.x+55} y2={b.y+22} stroke={linkStatus(world,l)==='vlan-mismatch'?'#f2b85a':linkUp(world,l)?'#80cb71':'#f47780'} strokeDasharray={l.media==='Fiber'?'5 4':undefined} strokeWidth={onPath?5:2}/>{onPath&&<circle r="5" fill="#fff"><animateMotion dur="1s" repeatCount="2" path={`M${a.x+55} ${a.y+22} L${b.x+55} ${b.y+22}`}/></circle>}</g>})}</svg>
     {world.devices.map(d=><button key={d.id} draggable={!wiring&&!packetMode} onDragStart={e=>{e.dataTransfer.setData('text/plain',d.id);setDrag(d.id);}} className={'infra-node '+(d.id===device.id||d.id===wireFrom||d.id===wireTo||d.id===packetSource?'selected':'')} style={{left:d.x,top:d.y}} onClick={()=>chooseOnMap(d.id)} onDoubleClick={()=>{if(!wiring&&!packetMode)openConsole(d.id);}}><strong>{d.id}</strong><small>{d.kind} · {d.power?'On':'Off'}</small></button>)}
    </div>
   </div>}
@@ -245,27 +251,27 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
     </div>}
     {tool==='Connections'&&<>
     <details className="infra-builder"><summary>Add a new cable</summary><div className="infra-toolbar"><label>Peer <select value={target} onChange={e=>setTarget(e.target.value)}><option value="">Select peer</option>{world.devices.filter(d=>d.id!==device.id).map(d=><option key={d.id}>{d.id}</option>)}</select></label><select aria-label="Cable type" value={media} onChange={e=>setMedia(e.target.value as Link['media'])}><option>Ethernet</option><option>Fiber</option></select><button className="secondary-button" disabled={!target||target===device.id} onClick={cable}>Connect cable</button></div></details>
-    {world.links.map((l,i)=>[l.a,l.b].includes(device.id)&&<div key={i} className="infra-link"><span>{l.a} e{l.ap+1} ↔ {l.b} e{l.bp+1} · {l.media} · {linkUp(world,l)?'up':'down'}</span><button className="secondary-button" onClick={()=>toggleCable(l)}>{l.connected?'Disconnect':'Reconnect'}</button></div>)}
+    {world.links.map((l,i)=>[l.a,l.b].includes(device.id)&&<div key={i} className="infra-link"><span>{l.a} e{l.ap+1} ↔ {l.b} e{l.bp+1} · {l.media} · {linkStatus(world,l)==='vlan-mismatch'?'Link up · VLAN mismatch':linkUp(world,l)?'Link up':'Link down'}</span><button className="secondary-button" onClick={()=>toggleCable(l)}>{l.connected?'Disconnect':'Reconnect'}</button></div>)}
    </>}
    {tool==='Console'&&<div><h3>{device.id} console <small>e{port+1}</small></h3>
     <p>Test from pc1 with <code>ping srv1</code>. Commands affect this shared environment.</p>
     <div className="infra-console">
      <div ref={consoleLog} className="infra-output" role="log" aria-label="Device console output" tabIndex={0}>
-      {transcript.length===0&&<p>{output||'Type help for available commands.'}</p>}
-      {transcript.map((entry,i)=><div className="infra-console-entry" key={i}><div><strong>{entry.prompt}</strong> {entry.input}</div><pre>{entry.output}</pre></div>)}
+      {deviceHistory.length===0&&<p>Type help for available commands on {device.id}.</p>}
+      {deviceHistory.map((entry,i)=><div className="infra-console-entry" key={i}><div><strong>{entry.prompt}</strong> {entry.input}</div><pre>{entry.output}</pre></div>)}
      </div>
      <form className="infra-console-form" onSubmit={e=>{e.preventDefault();execute(line);}}>
       <span aria-hidden="true">{consolePrompt(device,consoleMode,port)}</span>
       <input ref={consoleInput} aria-label="Device command" value={line} spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={e=>setLine(e.target.value)} placeholder="Type a command"
        onKeyDown={e=>{
         if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;
-        if(!transcript.length)return;
+        if(!deviceHistory.length)return;
         e.preventDefault();
         if(historyIndex===null&&e.key==='ArrowDown')return;
         if(historyIndex===null)draft.current=line;
-        const index=Math.max(0,Math.min(transcript.length,(historyIndex??transcript.length)+(e.key==='ArrowUp'?-1:1)));
-        setHistoryIndex(index===transcript.length?null:index);
-        setLine(index===transcript.length?draft.current:transcript[index].input);
+        const index=Math.max(0,Math.min(deviceHistory.length,(historyIndex??deviceHistory.length)+(e.key==='ArrowUp'?-1:1)));
+        setHistoryIndex(index===deviceHistory.length?null:index);
+        setLine(index===deviceHistory.length?draft.current:deviceHistory[index].input);
        }}/>
       <button className="primary-button" disabled={!line.trim()}>Run</button>
      </form>

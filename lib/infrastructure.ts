@@ -38,9 +38,13 @@ export function scenario(lab:Lab):Infra {
 }
 const get=(s:Infra,id:string)=>s.devices.find(d=>d.id===id);
 const portVlan=(s:Infra,d:Device,p:number)=>Number([...s.events].reverse().find(e=>e.startsWith('vlan:'+d.id+':'+p+':'))?.split(':')[3]??d.vlan);
+export function linkStatus(s:Infra,l:Link) {
+ const a=get(s,l.a), b=get(s,l.b);
+ if(!l.connected||!a?.power||!b?.power||!a.ports[l.ap]||!b.ports[l.bp])return 'down';
+ return portVlan(s,a,l.ap)===portVlan(s,b,l.bp)?'up':'vlan-mismatch';
+}
 export function linkUp(s:Infra,l:Link) {
- const a=get(s,l.a),b=get(s,l.b);
- return !!(l.connected&&a?.power&&b?.power&&a.ports[l.ap]&&b.ports[l.bp]&&portVlan(s,a,l.ap)===portVlan(s,b,l.bp));
+ return linkStatus(s,l)==='up';
 }
 export function route(s:Infra,from:string,to:string):string[] {
  const a=get(s,from),b=s.devices.find(d=>d.id===to||d.ip===to);
@@ -117,7 +121,7 @@ export function command(s:Infra,id:string,input:string,port:number):{output:stri
  if(text==='shutdown'||text==='no shutdown'){d.ports[port]=text==='no shutdown';s.events.push(id+' e'+(port+1)+' '+text);return result('Interface updated.');}
  const vlan=text.match(/^switchport access vlan (\d+)$/);
  if(vlan){const n=Number(vlan[1]);if(d.kind!=='Switch'||n<1||n>4094)return result('Requires a switch and VLAN 1–4094.');s.events.push('vlan:'+id+':'+port+':'+n);return result('Access VLAN updated.');}
- if(['show ip interface brief','show interfaces','show vlan brief','show running-config'].includes(text))return result(d.id+' '+d.ip+'\n'+d.ports.map((up,i)=>{const l=s.links.find(l=>(l.a===id&&l.ap===i)||(l.b===id&&l.bp===i));return 'e'+(i+1)+'  '+(!up?'admin-down':l&&linkUp(s,l)?'up':'down')+'  VLAN '+portVlan(s,d,i);}).join('\n'));
+ if(['show ip interface brief','show interfaces','show vlan brief','show running-config'].includes(text))return result(d.id+' '+d.ip+'\n'+d.ports.map((up,i)=>{const l=s.links.find(l=>(l.a===id&&l.ap===i)||(l.b===id&&l.bp===i));return 'e'+(i+1)+'  '+(!up?'admin-down':l&&linkStatus(s,l)!=='down'?'up':'down')+'  VLAN '+portVlan(s,d,i)+(l&&linkStatus(s,l)==='vlan-mismatch'?'  (VLAN mismatch)':'');}).join('\n'));
  if(text==='show ip route')return result(d.ip?'C '+d.ip.split('.').slice(0,3).join('.')+'.0/24 directly connected\nNo default route configured.':'No connected route.');
  if(text==='show provisioning')return result(s.configured.length?s.configured.join('\n'):'No hosts provisioned.');
  if(text==='show hardware')return result('Power: '+(d.power?'on':'off')+' | Feed B: '+(s.redundant?'healthy':'failed')+' | POST: '+(s.bootable?'ready':'boot failure')+' | RAID: '+(s.diskHealthy?'healthy':'degraded')+' | iSCSI: '+(s.storage?'active':'inactive'));
