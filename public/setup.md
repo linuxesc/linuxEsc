@@ -1,4 +1,4 @@
-# LinuxQuest — Master Linux Through Gaming
+# LinuxEsc — Master Linux Through Gaming
 
 A playable Next.js, React, TypeScript, Tailwind CSS and xterm.js learning platform. The initial deployment is a static export with browser-local progress. The optional FastAPI/PostgreSQL progress service runs separately.
 
