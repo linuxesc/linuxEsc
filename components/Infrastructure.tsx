@@ -1,0 +1,110 @@
+'use client';
+
+import {useEffect,useState} from 'react';
+import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,reachableServers,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
+
+type Scores=Partial<Record<Lab,number>>;
+export default function Infrastructure({openLinux}:{openLinux:()=>void}){
+ const [world,setWorld]=useState<Infra>(()=>scenario('free'));
+ const [lab,setLab]=useState<Lab>('free'),[view,setView]=useState('Topology'),[career,setCareer]=useState(0);
+ const [selected,select]=useState('sw1'),[port,setPort]=useState(0),[kind,setKind]=useState<Kind>('Server');
+ const [target,setTarget]=useState(''),[media,setMedia]=useState<Link['media']>('Ethernet');
+ const [line,setLine]=useState(''),[output,setOutput]=useState('Type help for supported commands.'),[packet,setPacket]=useState<string[]>([]);
+ const [scores,setScores]=useState<Scores>({}),[started,setStarted]=useState(0),[seconds,setSeconds]=useState(0);
+ const [guided,setGuided]=useState(true),[timed,setTimed]=useState(false),[debrief,setDebrief]=useState(false);
+ const [drag,setDrag]=useState<string|null>(null);
+ const mission=catalog.find(m=>m.id===lab);
+ const device=world.devices.find(d=>d.id===selected)??world.devices[0];
+ const complete=solved(world,lab);
+ const xp=Object.keys(scores).length*150;
+ useEffect(()=>{try{setScores(JSON.parse(localStorage.getItem('infraquest-completions')??'{}'));setCareer(Number(localStorage.getItem('infraquest-career')??0));}catch{}},[]);
+ useEffect(()=>{if(!started||complete)return;const timer=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer);},[started,complete]);
+ useEffect(()=>{if(!complete||lab==='free')return;const elapsed=Math.floor((Date.now()-started)/1000);setScores(old=>{if(old[lab]!==undefined&&old[lab]!<=elapsed)return old;const next={...old,[lab]:elapsed};try{localStorage.setItem('infraquest-completions',JSON.stringify(next));}catch{}return next});},[complete,lab,started]);
+ function start(id:Lab){
+  setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
+ }
+ function choose(id:string){select(id);setPort(0);}
+ function patch(change:Partial<Device>){setWorld(old=>({...old,devices:old.devices.map(d=>d.id===device.id?{...d,...change}:d)}));setPacket([]);}
+ function add(){
+  const index=world.devices.length;
+  const unit=Array.from({length:42},(_,i)=>i+1).find(u=>!world.devices.some(d=>d.room==='Compute'&&d.rack===2&&d.unit===u));
+  if(!unit){setOutput('Compute rack has no free units.');return;}
+  const next=makeDevice(kind.toLowerCase()+'-'+crypto.randomUUID().slice(0,8),kind,index);
+  next.room='Compute';next.rack=2;next.unit=unit;setWorld({...world,devices:[...world.devices,next]});choose(next.id);
+ }
+ function cable(){
+  const other=world.devices.find(d=>d.id===target);
+  if(!other||other.id===device.id)return;
+  const available=(d:Device)=>d.ports.findIndex((_,i)=>!world.links.some(l=>(l.a===d.id&&l.ap===i)||(l.b===d.id&&l.bp===i)));
+  const ap=available(device),bp=available(other);
+  if(ap<0||bp<0){setOutput('No unused port on one endpoint.');return;}
+  setWorld({...world,links:[...world.links,{a:device.id,ap,b:other.id,bp,media,connected:true}],events:[...world.events,device.id+' cabled to '+other.id]});
+ }
+ function execute(input:string){
+  if(!input.trim())return;
+  const next=structuredClone(world),result=command(next,device.id,input,port);
+  setWorld(next);setPort(result.port);setOutput(result.output);setPacket(result.packet??[]);setLine('');
+ }
+ const height=Math.max(300,...world.devices.map(d=>d.y+75));
+ const stable=!!route(world,'pc1','srv1').length;
+ return <section className="infra">
+  <header><div className="accent eyebrow">INFRAQUEST · CAREER MODE</div><h1>Infrastructure Control Center</h1><p>Operate the topology, hosts and racks from a shared simulation.</p></header>
+  <div className="infra-toolbar">
+   <label>Career path <select value={career} onChange={e=>{const n=Number(e.target.value);setCareer(n);try{localStorage.setItem('infraquest-career',String(n));}catch{}}}>{paths.map((p,i)=><option key={p} value={i}>{p}</option>)}</select></label>
+   <label><input type="checkbox" checked={guided} onChange={e=>setGuided(e.target.checked)}/> Guided</label>
+   <label><input type="checkbox" checked={timed} onChange={e=>setTimed(e.target.checked)}/> Timed</label>
+   <span>{xp} infrastructure XP · {Object.keys(scores).length}/{catalog.length} missions</span>{xp>0&&<span className="tag tag-green">First infrastructure recovery</span>}
+  </div>
+  {career===0?<p><button onClick={openLinux} className="primary-button">Open Linux missions</button></p>:<div className="infra-labs">
+   {catalog.filter(m=>m.path===career).map(m=><button className={lab===m.id?'primary-button':'secondary-button'} key={m.id} disabled={m.level>0&&catalog.some(prior=>prior.path===m.path&&prior.level<m.level)&&!catalog.some(prior=>prior.path===m.path&&prior.level===m.level-1&&scores[prior.id]!==undefined)} onClick={()=>start(m.id)}>{scores[m.id]!==undefined?'✓ ':''}{m.title} · {levels[m.level]}</button>)}
+  </div>}
+  <div className="panel infra-brief"><h2>{mission?.title??'Free practice'}</h2>
+   <p>{mission?.brief??'Build a topology, configure endpoints and inspect how device changes affect your services.'}</p>
+   {mission&&guided&&<details><summary>Guided steps</summary>{mission.hint}</details>}
+   {mission&&<details><summary>Interview practice</summary><p>How would you diagnose and resolve this incident?</p><p>{mission.answer}</p></details>}
+   {mission&&timed&&<p>Elapsed {seconds}s · Suggested target 300s</p>}
+   {complete&&<div role="status"><strong className="accent">Mission complete · +150 XP on first completion</strong> <button onClick={()=>setDebrief(!debrief)} className="secondary-button">Debrief</button>{debrief&&<p>{mission?.brief} {mission?.answer}</p>}</div>}
+   <div className="infra-toolbar"><button className="secondary-button" onClick={()=>start(lab)}>Reset environment</button><button className="secondary-button" onClick={()=>start('free')}>Free practice</button>
+    {lab==='free'&&<><button className="secondary-button" onClick={()=>{try{localStorage.setItem('infraquest-topology',JSON.stringify(world));setOutput('Topology saved in this browser.');}catch{setOutput('Browser storage is unavailable.');}}}>Save topology</button><button className="secondary-button" onClick={()=>{try{const value=localStorage.getItem('infraquest-topology');if(value){const saved=JSON.parse(value) as Infra;setWorld(saved);choose(saved.devices[0].id);setTarget('');setPacket([]);setOutput('Saved topology loaded.');}else setOutput('No saved topology.');}catch{setOutput('Unable to load topology.');}}}>Load topology</button></>}
+   </div>
+  </div>
+  <div className="infra-toolbar" aria-label="Infrastructure views">{['Topology','Racks','Operations'].map(v=><button className={v===view?'primary-button':'secondary-button'} key={v} onClick={()=>setView(v)}>{v}</button>)}</div>
+  {view==='Topology'&&<div className="panel infra-diagram">
+   <div className="infra-toolbar"><label>Equipment <select value={kind} onChange={e=>setKind(e.target.value as Kind)}>{kinds.map(k=><option key={k}>{k}</option>)}</select></label><button className="secondary-button" onClick={add}>Add equipment</button><span>Drag devices to position them.</span></div>
+   <div className="infra-canvas" style={{height}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const rect=e.currentTarget.getBoundingClientRect();setWorld(old=>({...old,devices:old.devices.map(d=>d.id===drag?{...d,x:Math.max(0,Math.min(rect.width-120,e.clientX-rect.left-55)),y:Math.max(0,Math.min(height-60,e.clientY-rect.top-26))}:d)}));setDrag(null);}}>
+    <svg aria-hidden="true" width="100%" height={height}>{world.links.map((l,i)=>{const a=world.devices.find(d=>d.id===l.a)!,b=world.devices.find(d=>d.id===l.b)!;const onPath=packet.some((id,i)=>(id===l.a&&packet[i+1]===l.b)||(id===l.b&&packet[i+1]===l.a));return <g key={i}><line x1={a.x+55} y1={a.y+22} x2={b.x+55} y2={b.y+22} stroke={linkUp(world,l)?'#80cb71':'#f47780'} strokeDasharray={l.media==='Fiber'?'5 4':undefined} strokeWidth={onPath?5:2}/>{onPath&&<circle r="5" fill="#fff"><animateMotion dur="1s" repeatCount="2" path={`M${a.x+55} ${a.y+22} L${b.x+55} ${b.y+22}`}/></circle>}</g>})}</svg>
+    {world.devices.map(d=><button key={d.id} draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',d.id);setDrag(d.id);}} className={'infra-node '+(d.id===device.id?'selected':'')} style={{left:d.x,top:d.y}} onClick={()=>choose(d.id)}><strong>{d.id}</strong><small>{d.kind} · {d.power?'On':'Off'}</small></button>)}
+   </div>
+  </div>}
+  {view==='Racks'&&<div className="infra-racks">{['Network','Compute'].map(room=><div className="panel infra-brief" key={room}><h2>{room} room</h2>{[1,2].map(rack=><section className="infra-rack" key={rack}><h3>Rack {rack} · {world.devices.filter(d=>d.room===room&&d.rack===rack&&d.unit>0).length}/42 U occupied</h3>{world.devices.filter(d=>d.room===room&&d.rack===rack&&d.unit>0).sort((a,b)=>b.unit-a.unit).map(d=><button key={d.id} className={d.id===device.id?'primary-button':'secondary-button'} onClick={()=>choose(d.id)}>U{d.unit} · {d.id} · {d.power?'Powered':'Off'}</button>)}</section>)}</div>)}</div>}
+  {view==='Operations'&&<div className="infra-racks">{[
+   ['Linux',reachableServers(world).length+' reachable hosts', 'ansible all -m ping'],
+   ['Networking',world.links.filter(l=>linkUp(world,l)).length+'/'+world.links.length+' links up','show interfaces'],
+   ['Ansible',world.configured.length+' provisioned hosts','show provisioning'],
+   ['Podman',world.container?(world.image==='web:stable'&&stable?'web reachable':'web unhealthy'):'No container','podman ps'],
+   ['Kubernetes',world.nodeReady?'worker-2 schedulable':'worker-2 cordoned','kubectl get pods'],
+   ['Data center',(world.redundant?'Dual power':'Single power feed')+' · '+(world.diskHealthy?'RAID healthy':'RAID degraded'),'show hardware'],
+  ].map(([title,status,cmd])=><div key={title} className="panel infra-brief"><h3>{title}</h3><p>{status}</p><button className="secondary-button" onClick={()=>execute(cmd)}>Inspect</button></div>)}</div>}
+  <div className="infra-racks">
+   <div className="panel infra-brief"><h2>Device and cabling</h2>
+    <div className="infra-form">
+     <label>Device<select value={device.id} onChange={e=>choose(e.target.value)}>{world.devices.map(d=><option key={d.id}>{d.id}</option>)}</select></label>
+     <label>IPv4 address /24<input value={device.ip} onChange={e=>patch({ip:e.target.value})}/></label>
+     <label>VLAN<input type="number" min="1" max="4094" value={device.vlan} onChange={e=>{const n=e.target.valueAsNumber;if(n>=1&&n<=4094)patch({vlan:n});}}/></label>
+     <label>Room<select value={device.room} onChange={e=>{const room=e.target.value;patch({room,unit:world.devices.some(d=>d.id!==device.id&&d.room===room&&d.rack===device.rack&&d.unit===device.unit)?0:device.unit});}}><option>Network</option><option>Compute</option></select></label>
+     <label>Rack<select value={device.rack} onChange={e=>{const rack=Number(e.target.value);patch({rack,unit:world.devices.some(d=>d.id!==device.id&&d.room===device.room&&d.rack===rack&&d.unit===device.unit)?0:device.unit});}}><option>1</option><option>2</option></select></label>
+     <label>Rack unit<select value={device.unit} onChange={e=>patch({unit:Number(e.target.value)})}><option value={0}>Unracked</option>{Array.from({length:42},(_,i)=>i+1).map(u=><option key={u} disabled={world.devices.some(d=>d.id!==device.id&&d.room===device.room&&d.rack===device.rack&&d.unit===u)}>{u}</option>)}</select></label>
+     <button className="secondary-button" onClick={()=>execute(device.power?'power off':'power on')}>{device.power?'Power off':'Power on'}</button>
+    </div>
+    <div className="infra-toolbar"><label>Peer <select value={target} onChange={e=>setTarget(e.target.value)}><option value="">Select peer</option>{world.devices.filter(d=>d.id!==device.id).map(d=><option key={d.id}>{d.id}</option>)}</select></label><select aria-label="Cable type" value={media} onChange={e=>setMedia(e.target.value as Link['media'])}><option>Ethernet</option><option>Fiber</option></select><button className="secondary-button" disabled={!target||target===device.id} onClick={cable}>Connect cable</button></div>
+    {world.links.map((l,i)=>[l.a,l.b].includes(device.id)&&<div key={i} className="infra-link"><span>{l.a} e{l.ap+1} ↔ {l.b} e{l.bp+1} · {l.media} · {linkUp(world,l)?'up':'down'}</span><button className="secondary-button" onClick={()=>{setPacket([]);setWorld({...world,links:world.links.map((link,j)=>j===i?{...link,connected:!link.connected}:link),events:[...world.events,l.a+' ↔ '+l.b+(l.connected?' disconnected':' reconnected')]});}}>{l.connected?'Disconnect':'Reconnect'}</button></div>)}
+   </div>
+   <div className="panel infra-brief"><h2>{device.id} console <small>e{port+1}</small></h2>
+    <p>Test from pc1 with <code>ping srv1</code>. Commands affect this shared environment.</p>
+    <pre aria-live="polite" className="infra-output">{output}</pre>
+    <form className="infra-toolbar" onSubmit={e=>{e.preventDefault();execute(line);}}><input aria-label="Device command" value={line} onChange={e=>setLine(e.target.value)} placeholder="show ip interface brief"/><button className="primary-button" disabled={!line.trim()}>Run</button></form>
+    <h3>Recent events</h3><ul>{world.events.slice(-6).reverse().map((e,i)=><li key={i}>{e}</li>)}</ul>
+   </div>
+  </div>
+ </section>;
+}

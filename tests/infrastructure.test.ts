@@ -1,0 +1,39 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {command,scenario,solved,route,makeDevice,type Lab,type Infra} from '../lib/infrastructure';
+
+function run(world:Infra,id:string,...lines:string[]){
+ let port=0;
+ for(const line of lines)port=command(world,id,line,port).port;
+}
+const web=['podman volume create app-data','podman network create app-net','podman run --network app-net -v app-data:/data web:stable'];
+const repairs:Partial<Record<Lab,(s:Infra)=>void>>={
+ vlan:s=>run(s,'sw1','interface e2','switchport access vlan 10'),
+ ansible:s=>run(s,'sw1','interface e8','no shutdown','ansible-playbook site.yml'),
+ podman:s=>run(s,'srv1',...web),
+ kubernetes:s=>run(s,'srv1','kubectl uncordon worker-2','kubectl rollout undo deployment/web','kubectl scale deployment/web --replicas=3'),
+ fiber:s=>{s.links.find(l=>l.media==='Fiber')!.connected=true;},
+ boot:s=>run(s,'srv1','hardware repair boot'),
+ raid:s=>run(s,'san1','hardware replace disk'),
+ power:s=>run(s,'srv1','hardware restore feed-b'),
+ storage:s=>run(s,'san1','storage start iscsi'),
+ monitor:s=>run(s,'sw1','interface e8','no shutdown','monitor enroll all'),
+ maintenance:s=>run(s,'srv1','maintenance drain','power off','maintenance update','power on','maintenance resume'),
+ recovery:s=>{run(s,'sw1','interface e2','no shutdown');run(s,'san1','storage start iscsi');run(s,'srv1',...web);},
+ install:s=>{const d=makeDevice('srv2','Server',4);d.ip='10.10.10.99';s.devices.push(d);s.links.push({a:'sw1',ap:3,b:d.id,bp:0,connected:true,media:'Ethernet'});},
+};
+for (const [id,repair] of Object.entries(repairs))test('Infrastructure mission: '+id,()=>{
+ const lab=id as Lab,world=scenario(lab);
+ assert.equal(solved(world,lab),false);
+ repair(world);
+ assert.equal(solved(world,lab),true);
+});
+test('Disabled access port interrupts connectivity and the hosted application',()=>{
+ const world=scenario('podman');
+ run(world,'srv1',...web);
+ assert.deepEqual(route(world,'pc1','srv1'),['pc1','sw1','srv1']);
+ run(world,'sw1','interface e2','shutdown');
+ assert.deepEqual(route(world,'pc1','srv1'),[]);
+ assert.equal(solved(world,'podman'),false);
+ assert.match(command(world,'srv1','podman ps',0).output,/unreachable/);
+});
