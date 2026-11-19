@@ -1,8 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY main.py missions.json ./
+COPY backend/main.py backend/incident_feed.py backend/missions.json ./
+COPY data/incidents.json ./incident_seed.json
 RUN useradd --create-home quest
 USER quest
 EXPOSE 8000

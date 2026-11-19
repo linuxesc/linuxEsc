@@ -37,3 +37,19 @@ test('Disabled access port interrupts connectivity and the hosted application',(
  assert.equal(solved(world,'podman'),false);
  assert.match(command(world,'srv1','podman ps',0).output,/unreachable/);
 });
+
+test('Cooling incident requires Facilities clearance and client verification',()=>{
+ const world=scenario('cooling');
+ assert.equal(solved(world,'cooling'),false);
+ assert.match(command(world,'srv1','power on',0).output,/blocked/);
+ run(world,'srv1','incident await-clearance');
+ assert.equal(world.cooling?.restored,false);
+ run(world,'srv1','incident isolate srv1','incident escalate facilities','incident await-clearance','power on');
+ assert.equal(solved(world,'cooling'),false);
+ assert.match(command(world,'srv1','verify application',0).output,/client/);
+ assert.match(command(world,'pc1','verify application',0).output,/HTTP 200/);
+ assert.equal(solved(world,'cooling'),true);
+ run(world,'srv1','power off','power on');
+ assert.equal(solved(world,'cooling'),false);
+ assert.equal(solved(scenario('cooling'),'cooling'),false);
+});

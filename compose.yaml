@@ -12,11 +12,14 @@ services:
       interval: 5s
       retries: 10
   api:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: postgresql://linuxquest:${POSTGRES_PASSWORD}@postgres:5432/linuxquest
+      INCIDENT_SYNC_ENABLED: "1"
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     depends_on:
       postgres:

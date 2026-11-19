@@ -1,10 +1,11 @@
 'use client';
 
+import cases from '@/data/incidents.json';
 import {useEffect,useState} from 'react';
 import {catalog,paths,levels,kinds,scenario,makeDevice,linkUp,route,solved,command,reachableServers,type Lab,type Infra,type Device,type Link,type Kind} from '@/lib/infrastructure';
 
 type Scores=Partial<Record<Lab,number>>;
-export default function Infrastructure({openLinux,practiceUntil,startPracticeHour}:{openLinux:()=>void;practiceUntil:number;startPracticeHour:()=>void}){
+export default function Infrastructure({openLinux,practiceUntil,startPracticeHour,startCooling,clearLaunch}:{startCooling:boolean;clearLaunch:()=>void;openLinux:()=>void;practiceUntil:number;startPracticeHour:()=>void}){
  const [world,setWorld]=useState<Infra>(()=>scenario('free'));
  const [lab,setLab]=useState<Lab>('free'),[view,setView]=useState('Topology'),[career,setCareer]=useState(0);
  const [selected,select]=useState('sw1'),[port,setPort]=useState(0),[kind,setKind]=useState<Kind>('Server');
@@ -12,6 +13,8 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const [line,setLine]=useState(''),[output,setOutput]=useState('Type help for supported commands.'),[packet,setPacket]=useState<string[]>([]);
  const [scores,setScores]=useState<Scores>({}),[started,setStarted]=useState(0),[seconds,setSeconds]=useState(0);
  const [guided,setGuided]=useState(true),[timed,setTimed]=useState(false),[debrief,setDebrief]=useState(false);
+ const [incidentMode,setIncidentMode]=useState('Learning');
+ const [hintStep,setHintStep]=useState(0);
  const [drag,setDrag]=useState<string|null>(null);
  const mission=catalog.find(m=>m.id===lab);
  const device=world.devices.find(d=>d.id===selected)??world.devices[0];
@@ -21,8 +24,9 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  useEffect(()=>{if(!started||complete)return;const timer=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(timer);},[started,complete]);
  useEffect(()=>{if(!complete||lab==='free')return;const elapsed=Math.floor((Date.now()-started)/1000);setScores(old=>{if(old[lab]!==undefined&&old[lab]!<=elapsed)return old;const next={...old,[lab]:elapsed};try{localStorage.setItem('infraquest-completions',JSON.stringify(next));}catch{}return next});},[complete,lab,started]);
  function start(id:Lab){
-  setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
+  setHintStep(0);setWorld(scenario(id));setLab(id);setStarted(Date.now());setSeconds(0);select('sw1');setPort(0);setPacket([]);setDebrief(false);setTarget('');setOutput('Environment ready. Type help for commands.');
  }
+ useEffect(()=>{if(startCooling){start('cooling');setCareer(5);clearLaunch();}},[startCooling,clearLaunch]);
  function choose(id:string){select(id);setPort(0);}
  function patch(change:Partial<Device>){setWorld(old=>({...old,devices:old.devices.map(d=>d.id===device.id?{...d,...change}:d)}));setPacket([]);}
  function add(){
@@ -56,14 +60,22 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
    <button className="secondary-button" onClick={startPracticeHour}>{practiceUntil>Date.now()?'All missions unlocked until '+new Date(practiceUntil).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+' · Restart hour':'Unlock all missions for 1 hour'}</button><span>{xp} infrastructure XP · {Object.keys(scores).length}/{catalog.length} missions</span>{xp>0&&<span className="tag tag-green">First infrastructure recovery</span>}
   </div>
   {career===0?<p><button onClick={openLinux} className="primary-button">Open Linux missions</button></p>:<div className="infra-labs">
-   {catalog.filter(m=>m.path===career).map(m=><button className={lab===m.id?'primary-button':'secondary-button'} key={m.id} disabled={practiceUntil<=Date.now()&&m.level>0&&catalog.some(prior=>prior.path===m.path&&prior.level<m.level)&&!catalog.some(prior=>prior.path===m.path&&prior.level===m.level-1&&scores[prior.id]!==undefined)} onClick={()=>start(m.id)}>{scores[m.id]!==undefined?'✓ ':''}{m.title} · {levels[m.level]}</button>)}
+   {catalog.filter(m=>m.path===career).map(m=><button className={lab===m.id?'primary-button':'secondary-button'} key={m.id} disabled={m.id!=='cooling'&&practiceUntil<=Date.now()&&m.level>0&&catalog.some(prior=>prior.path===m.path&&prior.level<m.level)&&!catalog.some(prior=>prior.path===m.path&&prior.level===m.level-1&&scores[prior.id]!==undefined)} onClick={()=>start(m.id)}>{scores[m.id]!==undefined?'✓ ':''}{m.title} · {levels[m.level]}</button>)}
   </div>}
   <div className="panel infra-brief"><h2>{mission?.title??'Free practice'}</h2>
    <p>{mission?.brief??'Build a topology, configure endpoints and inspect how device changes affect your services.'}</p>
-   {mission&&guided&&<details><summary>Guided steps</summary>{mission.hint}</details>}
-   {mission&&<details><summary>Interview practice</summary><p>How would you diagnose and resolve this incident?</p><p>{mission.answer}</p></details>}
+   {lab==='cooling'&&<div className="infra-toolbar"><label>Incident mode<select value={incidentMode} onChange={e=>setIncidentMode(e.target.value)}>{['Learning','Blind Troubleshooting','On-Call Simulation','Interview'].map(mode=><option key={mode}>{mode}</option>)}</select></label><span>Fictional training adaptation</span><a className="text-button accent" href={cases[0].url} target="_blank" rel="noreferrer">Operator postmortem</a></div>}
+   {lab==='cooling'&&incidentMode==='Learning'&&<div><button className="secondary-button" disabled={hintStep>=3} onClick={()=>setHintStep(n=>n+1)}>Reveal next evidence hint</button><ol>{[
+    'Read show environment and show hardware on srv1. A room alarm plus a powered-off host suggests protective shutdown, but confirm before restarting.',
+    'Record isolation with incident isolate srv1. Use incident escalate facilities and incident await-clearance. A restart is blocked until simulated clearance.',
+    'Once cleared, power on srv1. Select pc1 and run verify application. Expect HTTP 200 only when the client path is restored.',
+   ].slice(0,hintStep).map(h=><li key={h}>{h}</li>)}</ol></div>}
+   {lab==='cooling'&&incidentMode==='On-Call Simulation'&&<p>On-call elapsed: {seconds}s. Record isolation and escalation, then verify recovery from pc1.</p>}
+   {lab==='cooling'&&incidentMode==='Interview'&&<details><summary>How would you distinguish a cooling incident from a switch outage?</summary><p>{mission?.answer}</p></details>}
+   {mission&&lab!=='cooling'&&guided&&<details><summary>Guided steps</summary>{mission.hint}</details>}
+   {mission&&lab!=='cooling'&&<details><summary>Interview practice</summary><p>How would you diagnose and resolve this incident?</p><p>{mission.answer}</p></details>}
    {mission&&timed&&<p>Elapsed {seconds}s · Suggested target 300s</p>}
-   {complete&&<div role="status"><strong className="accent">Mission complete · +150 XP on first completion</strong> <button onClick={()=>setDebrief(!debrief)} className="secondary-button">Debrief</button>{debrief&&<p>{mission?.brief} {mission?.answer}</p>}</div>}
+   {complete&&<div role="status"><strong className="accent">Mission complete · +150 XP on first completion</strong> <button onClick={()=>setDebrief(!debrief)} className="secondary-button">Debrief</button>{debrief&&<p>{mission?.answer} {lab==='cooling'&&cases[0].solution}</p>}</div>}
    <div className="infra-toolbar"><button className="secondary-button" onClick={()=>start(lab)}>Reset environment</button><button className="secondary-button" onClick={()=>start('free')}>Free practice</button>
     {lab==='free'&&<><button className="secondary-button" onClick={()=>{try{localStorage.setItem('infraquest-topology',JSON.stringify(world));setOutput('Topology saved in this browser.');}catch{setOutput('Browser storage is unavailable.');}}}>Save topology</button><button className="secondary-button" onClick={()=>{try{const value=localStorage.getItem('infraquest-topology');if(value){const saved=JSON.parse(value) as Infra;setWorld(saved);choose(saved.devices[0].id);setTarget('');setPacket([]);setOutput('Saved topology loaded.');}else setOutput('No saved topology.');}catch{setOutput('Unable to load topology.');}}}>Load topology</button></>}
    </div>

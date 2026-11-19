@@ -1,8 +1,8 @@
 export type Kind = 'Switch'|'Router'|'Server'|'PC'|'Firewall'|'Storage';
 export type Device = {id:string;kind:Kind;x:number;y:number;ip:string;vlan:number;power:boolean;room:string;rack:number;unit:number;ports:boolean[]};
 export type Link = {a:string;ap:number;b:string;bp:number;media:'Ethernet'|'Fiber';connected:boolean};
-export type Lab = 'free'|'vlan'|'ansible'|'podman'|'kubernetes'|'fiber'|'raid'|'power'|'storage'|'boot'|'maintenance'|'monitor'|'install'|'recovery';
-export type Infra = {devices:Device[];links:Link[];configured:string[];volume:boolean;network:boolean;container:boolean;image:string;nodeReady:boolean;replicas:number;diskHealthy:boolean;redundant:boolean;bootable:boolean;monitoring:string[];storage:boolean;events:string[]};
+export type Lab = 'cooling'|'free'|'vlan'|'ansible'|'podman'|'kubernetes'|'fiber'|'raid'|'power'|'storage'|'boot'|'maintenance'|'monitor'|'install'|'recovery';
+export type Infra = {devices:Device[];links:Link[];configured:string[];volume:boolean;network:boolean;container:boolean;image:string;nodeReady:boolean;replicas:number;diskHealthy:boolean;redundant:boolean;bootable:boolean;monitoring:string[];storage:boolean;events:string[];cooling?:{isolated:boolean;escalated:boolean;restored:boolean;verified:boolean}};
 export const catalog: {id:Lab;path:number;level:number;title:string;brief:string;hint:string;answer:string}[] = [
  {id:'vlan',path:1,level:0,title:'Repair an access VLAN',brief:'PC1 cannot reach srv1 on the same subnet. Inspect both switch ports and restore connectivity on VLAN 10.',hint:'Select sw1. Compare show vlan brief with the endpoints. Set interface e2 to access VLAN 10.',answer:'I compare port VLAN membership first, then confirm the fix with a ping from the affected endpoint.'},
  {id:'ansible',path:2,level:1,title:'Provision ten hosts',brief:'srv7 is unreachable. Restore its switch link, then converge all ten hosts using the playbook.',hint:'Check ansible all -m ping, enable sw1 e8, then run ansible-playbook site.yml.',answer:'I check inventory reachability, repair the failed host, then rerun the idempotent playbook and check the recap.'},
@@ -16,6 +16,7 @@ export const catalog: {id:Lab;path:number;level:number;title:string;brief:string
  {id:'storage',path:5,level:2,title:'Restore iSCSI access',brief:'The SAN responds on the network but the iSCSI target is inactive.',hint:'Select san1, run show hardware, then storage start iscsi.',answer:'I separate link and IP reachability from target availability, then verify the initiator can reconnect.'},
  {id:'monitor',path:5,level:2,title:'Monitor twenty servers',brief:'Enroll all twenty Linux hosts in monitoring. Restore the failed link before checking coverage.',hint:'Run monitor enroll all, identify missing hosts from the output, and enable sw1 e8 before retrying.',answer:'I check coverage against inventory and resolve unreachable hosts before declaring monitoring complete.'},
  {id:'maintenance',path:5,level:2,title:'Maintain a production server',brief:'Drain srv1 before shutdown. Restore it to service after the simulated update.',hint:'On srv1 use maintenance drain, power off, maintenance update, power on, and maintenance resume.',answer:'I drain traffic, verify the host is safe to stop, patch and reboot, then verify health before restoring traffic.'},
+ {id:'cooling',path:5,level:2,title:'Data Center Cooling Failure',brief:'APP-01 is unreachable and the room has a critical thermal alert. Diagnose before restarting equipment.',hint:'On srv1 inspect show environment and show hardware. Confirm isolation, escalate to Facilities, and wait for the simulated clearance. Restore power and verify from pc1.',answer:'A whole-room thermal alert and protective host shutdown point to cooling rather than a cable. Coordinate with Facilities, wait for clearance, then verify from a client.'},
  {id:'recovery',path:5,level:3,title:'Recover the application stack',brief:'A disabled access port, offline storage target and failed web image have interrupted service.',hint:'Restore sw1 e2, start iSCSI on san1, then apply the Podman volume, network and stable image recipe.',answer:'I recover dependencies in order and validate service availability from the client side.'},
 ];
 export const paths = ['Linux System Administrator','CCNA & Network Engineer','Ansible Automation Engineer','Podman & Container Engineer','Kubernetes Engineer','Data Center Infrastructure Engineer'];
@@ -32,7 +33,8 @@ export function scenario(lab:Lab):Infra {
  if(lab==='ansible'||lab==='monitor')devices[0].ports[7]=false;
  if(lab==='recovery')devices[0].ports[1]=false;
  if(lab==='vlan') devices[0].vlan=10;
- return {devices,links,configured:[],volume:false,network:false,container:false,image:'web:broken',nodeReady:lab!=='kubernetes',replicas:1,diskHealthy:lab!=='raid',redundant:lab!=='power',bootable:lab!=='boot',monitoring:[],storage:!['storage','recovery'].includes(lab),events:[lab==='vlan'?'Access port e2 assigned VLAN 20.':lab==='boot'?'BMC srv1: boot device unavailable.':lab==='raid'?'san1: RAID degraded. Disk slot 2 failed.':lab==='power'?'PDU feed B offline. Feed A carrying load.':'Scenario initialized.',...(lab==='vlan'?['vlan:sw1:1:20']:[])]};
+ if(lab==='cooling')devices.find(d=>d.id==='srv1')!.power=false;
+ return {devices,links,...(lab==='cooling'?{cooling:{isolated:false,escalated:false,restored:false,verified:false}}:{}),configured:[],volume:false,network:false,container:false,image:'web:broken',nodeReady:lab!=='kubernetes',replicas:1,diskHealthy:lab!=='raid',redundant:lab!=='power',bootable:lab!=='boot',monitoring:[],storage:!['storage','recovery'].includes(lab),events:[lab==='cooling'?'THERMAL CRITICAL: srv1 protective shutdown. Application probe failed.':lab==='vlan'?'Access port e2 assigned VLAN 20.':lab==='boot'?'BMC srv1: boot device unavailable.':lab==='raid'?'san1: RAID degraded. Disk slot 2 failed.':lab==='power'?'PDU feed B offline. Feed A carrying load.':'Scenario initialized.',...(lab==='vlan'?['vlan:sw1:1:20']:[])]};
 }
 const get=(s:Infra,id:string)=>s.devices.find(d=>d.id===id);
 const portVlan=(s:Infra,d:Device,p:number)=>Number([...s.events].reverse().find(e=>e.startsWith('vlan:'+d.id+':'+p+':'))?.split(':')[3]??d.vlan);
@@ -64,6 +66,7 @@ export const reachableServers=(s:Infra)=>s.devices.filter(d=>d.kind==='Server'&&
 const live=(s:Infra)=>s.container&&s.image==='web:stable'&&!!route(s,'pc1','srv1').length;
 export function solved(s:Infra,lab:Lab) {
  switch(lab){
+  case 'cooling': return !!s.cooling?.restored&&s.cooling.verified&&!!route(s,'pc1','srv1').length;
   case 'vlan': return !!route(s,'pc1','srv1').length;
   case 'ansible': return s.configured.length===10&&reachableServers(s).length===10;
   case 'podman': return live(s)&&s.volume&&s.network;
@@ -84,6 +87,26 @@ export function command(s:Infra,id:string,input:string,port:number):{output:stri
  const d=get(s,id),words=input.trim().split(/\s+/), text=words.join(' ');
  const result=(output:string,next=port,packet?:string[])=>({output,port:next,packet});
  if(!d)return result('Select a device first.');
+ if(s.cooling){
+  const cooling=s.cooling;
+  if(text==='help')return result('show environment | show hardware | incident isolate srv1 | incident escalate facilities | incident await-clearance | power on | ping srv1 | verify application');
+  if(text==='show environment')return result(cooling.restored?'Facilities cleared recovery. Inlet 23°C, cooling available.':'Inlet 39°C (simulated) and rising. Both cooling units alarmed. Thermal restart interlock active.');
+  if(text==='incident isolate srv1'){
+   if(get(s,'srv1')?.power)return result('Isolation requires srv1 to be powered off.');
+   cooling.isolated=true;s.events.push('Operations confirmed srv1 safely isolated.');return result('Isolation recorded.');
+  }
+  if(text==='incident escalate facilities'){cooling.escalated=true;s.events.push('Facilities escalation acknowledged.');return result('Facilities owns the cooling repair. Keep srv1 isolated.');}
+  if(text==='incident await-clearance'){
+   if(!cooling.isolated||!cooling.escalated)return result('Confirm isolation and escalate first.');
+   cooling.restored=true;s.events.push('Simulated facilities clearance received. Inlet stable at 23°C.');return result('Cooling restored and stable. Restart srv1 and verify from pc1.');
+  }
+  if(text==='power on'&&id==='srv1'&&!cooling.restored)return result('Restart blocked: no Facilities clearance.');
+  if(text==='verify application'){
+   if(id!=='pc1')return result('Verify from the client pc1.');
+   cooling.verified=!!route(s,'pc1','srv1').length;
+   return result(cooling.verified?'HTTP 200 (simulated). Client recovery verified.':'HTTP probe failed. Check power and reachability.');
+  }
+ }
  if(text==='help')return result('show ip interface brief | show interfaces | show vlan brief | show ip route | show running-config | show hardware\ninterface eN | shutdown | no shutdown | switchport access vlan N | ping HOST | traceroute HOST\nansible all -m ping | ansible-playbook site.yml | podman ps | podman logs web | kubectl get nodes | kubectl get pods');
  if(words[0]==='ping'||words[0]==='traceroute'){
   const path=route(s,id,words[1]);
@@ -103,7 +126,7 @@ export function command(s:Infra,id:string,input:string,port:number):{output:stri
  if(text==='hardware restore feed-b'&&id==='srv1'){s.redundant=true;return result('Dual feed redundancy restored.');}
  if(text==='storage start iscsi'&&d.kind==='Storage'){s.storage=true;return result('iSCSI target active.');}
  if(text==='maintenance drain'&&d.kind==='Server'&&d.power){s.events.push(id+' drained');return result('Workload drained.');}
- if(text==='power off'||text==='power on'){d.power=text==='power on';return result('Power '+(d.power?'on':'off'));}
+ if(text==='power off'||text==='power on'){if(id==='srv1'&&s.cooling)s.cooling.verified=false;d.power=text==='power on';return result('Power '+(d.power?'on':'off'));}
  if(text==='maintenance update'&&!d.power&&s.events.includes(id+' drained')){s.events.push(id+' updated');return result('Offline update applied.');}
  if(text==='maintenance resume'&&d.power&&s.events.includes(id+' updated')){s.events.push('Maintenance completed');return result('Workload resumed.');}
  if(['ansible all -m ping','ansible-playbook site.yml','monitor enroll all'].includes(text)){

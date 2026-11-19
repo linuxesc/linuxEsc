@@ -1,5 +1,7 @@
 """Optional pseudonymous progress service. Never accepts or executes terminal commands."""
+import asyncio
 import hashlib
+from contextlib import suppress
 import json
 import os
 from contextlib import asynccontextmanager
@@ -12,6 +14,11 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
+try:
+    from .incident_feed import initialize, router, worker
+except ImportError:
+    from incident_feed import initialize, router, worker
+
 DB_URL = os.getenv("DATABASE_URL", "")
 SCHEMA = """CREATE TABLE IF NOT EXISTS quest_progress (
     token_hash TEXT PRIMARY KEY,
@@ -22,13 +29,25 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS quest_progress (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.db_url = DB_URL
+    task = None
     if DB_URL:
         async with await psycopg.AsyncConnection.connect(DB_URL) as conn:
             await conn.execute(SCHEMA)
-    yield
+            await initialize(conn)
+        if os.getenv("INCIDENT_SYNC_ENABLED") == "1":
+            task = asyncio.create_task(worker(DB_URL))
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
 
 app = FastAPI(title="LinuxQuest Progress API", version="1.0.0", lifespan=lifespan)
+app.include_router(router)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(","), allow_methods=["GET", "PUT"], allow_headers=["Content-Type", "X-Progress-Key"])
 
 

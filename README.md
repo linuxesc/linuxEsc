@@ -101,3 +101,11 @@ Add an entry to `missions` in `lib/missions.ts` with a unique ID, tier, scenario
 - https://xtermjs.org/docs/api/terminal/classes/terminal/
 - https://fastapi.tiangolo.com/
 - https://www.psycopg.org/psycopg3/docs/
+
+## Incident intelligence
+
+The public site uses Google's public status JSON feed and refreshes it every five minutes while the incident page is open. The displayed timestamp is the last successful fetch; discovery time on that deployment is scoped to the open page. Reviewed historical cases live in `data/incidents.json`. Only operator-documented completed recoveries are labeled verified in the seed. Simulated commands and telemetry are fictional and explicitly identified.
+
+For scheduled ingest, launch the existing Compose stack with PostgreSQL configured. The API's incident worker runs hourly, retries after failures, and upserts public metadata by source ID without storing raw posts. Set `NEXT_PUBLIC_INCIDENTS_API` before building the frontend to the HTTPS origin of that API and configure `CORS_ORIGINS` for the frontend. The endpoint is `GET /incidents`. PostgreSQL preserves first discovery time. The scheduled API is a separate deployment from the static site.
+
+To review a discovered incident, read the operator report and record the date, scope, confirmed recovery and verification basis in the curated seed. Missing details remain unknown. Never promote a raw source record automatically. Publish a separately labeled lab only after testing the recovery. Current source coverage is the Google feed and the two reviewed postmortems. The cooling coach gives source-linked scripted hints based on the training scenario.
