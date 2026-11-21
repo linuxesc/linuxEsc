@@ -5,15 +5,7 @@ Live site: [linuxesc.com](https://linuxesc.com).
 A playable Next.js, React, TypeScript, Tailwind CSS and xterm.js learning platform. The initial deployment is a static export with browser-local progress. The optional FastAPI/PostgreSQL progress service runs separately.
 
 ## Start the website
-
-Requirements: Node.js 20.9+ and npm.
-
-```sh
-npm install
-npm run dev
-```
-
-Open http://127.0.0.1:3000. Choose your experience, enter an optional nickname, and click **Let’s play**. Your first mission is immediately playable:
+Open https://linuxesc.com. Choose your experience, enter an optional nickname, and click **Let’s play**. Your first mission is immediately playable:
 
 ```sh
 pwd
@@ -25,12 +17,6 @@ cat flag.txt
 The flag completes the mission, awards 100 XP once, and unlocks the next quest. No terminal command is sent to a server or executed on a real operating system.
 
 ## Build and verify
-
-```sh
-npm run typecheck
-npm test
-npm run build
-```
 
 `out/` contains the deployable static site. Serve this directory with any static web server; `next start` is not used with static exports.
 
@@ -66,18 +52,6 @@ docker compose up --build -d
 Open http://127.0.0.1:8000/docs for the API. `GET /health` checks service configuration. `GET /missions` returns the public catalog. `PUT /progress/me` and `GET /progress/me` store and retrieve validated progress in PostgreSQL.
 
 For the progress endpoints, supply your own cryptographically random secret of 32–256 characters in the `X-Progress-Key` header. The server stores only its SHA-256 hash. Anyone holding the key can access that record; this is pseudonymous possession-based access, not account authentication. Keep it private and run this development service on localhost. XP is recomputed from completed mission IDs, but mission completion is trusted client input. A public competitive service needs server-authoritative validation, real authentication, rate limiting, and session controls.
-
-To run the API without Docker:
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
-export DATABASE_URL='postgresql://linuxquest:your-password@127.0.0.1:5432/linuxquest'
-uvicorn backend.main:app --host 127.0.0.1 --port 8000
-```
-
-Without `DATABASE_URL`, health and catalog work; progress endpoints return HTTP 503. The PostgreSQL table is initialized at startup. Set `CORS_ORIGINS` to explicit permitted origins for another frontend.
 
 ## Project structure
 
