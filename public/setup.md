@@ -1,4 +1,6 @@
-# LinuxEsc — Master Linux Through Gaming
+# linuxEsc — Linux, Networking, DevOps & Data Center Simulator
+
+Live site: [linuxesc.com](https://linuxesc.com).
 
 A playable Next.js, React, TypeScript, Tailwind CSS and xterm.js learning platform. The initial deployment is a static export with browser-local progress. The optional FastAPI/PostgreSQL progress service runs separately.
 

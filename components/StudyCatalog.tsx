@@ -16,7 +16,7 @@ export default function StudyCatalog({navigate}:{navigate:(page:string)=>void}){
  const [query,setQuery]=useState('');
  const results=tracks.filter(track=>(track.name+' '+track.topics).toLowerCase().includes(query.trim().toLowerCase()));
  return <section className="home-skills" aria-labelledby="study-catalog-heading">
-  <div className="section-title"><div><h2 id="study-catalog-heading">Skills catalog</h2><p>Find an InfraQuest lab or an independent practice idea.</p></div>
+  <div className="section-title"><div><h2 id="study-catalog-heading">Skills catalog</h2><p>Find an linuxEsc lab or an independent practice idea.</p></div>
    <label>Find a topic <input type="search" className="study-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Try Terraform or Kubernetes"/></label>
   </div>
   {results.length===0&&<p>No matching topics.</p>}

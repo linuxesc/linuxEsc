@@ -56,7 +56,7 @@ def parse(raw):
 
 
 def download():
-    req = Request(SOURCE, headers={"User-Agent": "InfraQuest incident metadata sync/1.0"})
+    req = Request(SOURCE, headers={"User-Agent": "linuxEsc incident metadata sync/1.0"})
     with urlopen(req, timeout=15) as response:
         if response.geturl() != SOURCE:
             raise ValueError("Unexpected source redirect")

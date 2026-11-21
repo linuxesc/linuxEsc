@@ -140,7 +140,7 @@ export default function Infrastructure({openLinux,practiceUntil,startPracticeHou
  const height=Math.max(300,...world.devices.map(d=>d.y+75));
  const stable=!!route(world,'pc1','srv1').length;
  return <section className="infra">
-  <header><div className="accent eyebrow">INFRAQUEST · CAREER MODE</div><h1>Infrastructure Control Center</h1><p>Operate the topology, hosts and racks from a shared simulation.</p></header>
+  <header><div className="accent eyebrow">linuxEsc · Career mode</div><h1>Infrastructure Control Center</h1><p>Operate the topology, hosts and racks from a shared simulation.</p></header>
   {lab!=='vlan'&&<div className="panel infra-brief"><h2>New to network labs?</h2><p>Start with one PC, one switch, and a server you need to reach.</p><button className="primary-button" onClick={()=>{setCareer(1);setGuided(true);start('vlan');}}>Start guided CCNA lab</button></div>}
 
   <details className="panel infra-brief" open={!mission}><summary>{mission?"Change mission or practice settings":"Choose a career path and mission"}</summary><div className="infra-toolbar">
